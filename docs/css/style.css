@@ -1,9 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
 :root,:root[data-theme="dark"],:root[data-theme="light"]{--bg:#ffffff;--surface:#ffffff;--surface-2:#f1f3f1;--ink:#000000;--ink-2:#333333;--ink-3:#6b716c;--line:#e0e4e0;--teal:#0f8f74;--coral:#d8492f;--amber:#d99a2b;--teal-soft:#e2f1ec;--coral-soft:#fbe7e1;--radius:12px}
 @media(prefers-color-scheme:dark){:root{--bg:#ffffff;--surface:#ffffff;--surface-2:#f1f3f1;--ink:#000000;--ink-2:#333333;--ink-3:#6b716c;--line:#e0e4e0;--teal:#0f8f74;--coral:#d8492f;--amber:#d99a2b;--teal-soft:#e2f1ec;--coral-soft:#fbe7e1}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;line-height:1.45}
-.serif{font-family:Georgia,serif;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter",Arial,system-ui,sans-serif;line-height:1.45}
+.serif{font-family:"EB Garamond",Georgia,serif;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
 .num{font-variant-numeric:tabular-nums}
 .wrap{max-width:1120px;margin:0 auto;padding:20px 18px 60px}
 h1{font-size:20px;margin:0;font-weight:600}

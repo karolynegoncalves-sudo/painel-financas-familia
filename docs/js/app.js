@@ -6,12 +6,13 @@ function decodeJwtEmail(t){try{return JSON.parse(atob(t.split('.')[1].replace(/-
 const BRL=v=>"R$ "+Math.round(v).toLocaleString("pt-BR");
 const el=id=>document.getElementById(id);
 const CORES={"Alimentação":"#e2593f","Saúde e Bem-estar":"#159a80","Educação":"#e6a63a","Transporte":"#5f8c7d","Moradia":"#c9784f","Compras":"#d95f7a","Cuidados Pessoais":"#8a6f9e","Pets":"#b0894a","Lazer":"#4fa08d","Assinaturas":"#7d9b6a","Tarifas":"#9aa7a1","Telefonia/Internet":"#c98f5a","Outros":"#aab4ae"};
+const ICON={"Alimentação":"🍎","Saúde e Bem-estar":"🩺","Educação":"🎓","Transporte":"🚗","Moradia":"🏠","Compras":"🛍️","Cuidados Pessoais":"💇","Pets":"🐾","Lazer":"🎬","Assinaturas":"📺","Tarifas":"🏦","Telefonia/Internet":"📱","Outros":"•"};
 const cor=k=>CORES[k]||"#9aa7a1";
 let MESES=[];
 let filtroMes="Ano",aberta=null;
 
 // tabs
-const TABS=[["visao","Visão geral"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["proj","Projeção 2027"]];
+const TABS=[["visao","Visão geral"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["proj","Projeção 2027"],["patrim","Patrimônio"]];
 el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="${t[0]}">${t[1]}</button>`).join("");
 [...document.querySelectorAll('.tab')].forEach(b=>b.onclick=()=>{
   [...document.querySelectorAll('.tab')].forEach(x=>x.classList.toggle('on',x===b));
@@ -38,7 +39,7 @@ function pieSVG(id,entries,colFn){
 }
 function barsHTML(entries,colFn,clickable){
   const e=entries.filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);const mx=e[0]?e[0][1]:1;
-  return e.map((x,i)=>`<div class="row${clickable?' clk':''}" ${clickable?`data-k="${x[0]}"`:''}><div class="nm"><i class="dot" style="background:${colFn(x[0],i)}"></i>${x[0]}</div><div class="bar"><i style="width:${Math.max(x[1]/mx*100,2)}%;background:${colFn(x[0],i)}"></i></div><div class="vl num">${BRL(x[1])}</div></div>`).join("");
+  return e.map((x,i)=>`<div class="row${clickable?' clk':''}" ${clickable?`data-k="${x[0]}"`:''}><div class="nm"><i class="dot" style="background:${colFn(x[0],i)}"></i>${ICON[x[0]]?ICON[x[0]]+' ':''}${x[0]}</div><div class="bar"><i style="width:${Math.max(x[1]/mx*100,2)}%;background:${colFn(x[0],i)}"></i></div><div class="vl num">${BRL(x[1])}</div></div>`).join("");
 }
 
 // ---------- VISÃO ----------
@@ -71,7 +72,7 @@ function drawDonut(cat){
   let a=-Math.PI/2,s=`<svg viewBox="0 0 160 160">`;
   segs.forEach(([k,v])=>{const a1=a+v/tot*2*Math.PI;s+=`<path d="${arc(80,80,60,a,a1-.02)}" stroke="${cor(k)}" stroke-width="22" fill="none" stroke-linecap="round"/>`;a=a1;});
   el("donut").innerHTML=s+`<text x="80" y="75" font-size="11" fill="var(--ink-3)" text-anchor="middle">gasto/mês</text><text x="80" y="94" font-size="16" fill="var(--ink)" text-anchor="middle" class="serif">${BRL(tot)}</text></svg>`;
-  el("donutLeg").innerHTML=segs.map(([k,v])=>`<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;margin:3px 0"><i class="dot" style="background:${cor(k)}"></i><span style="flex:1">${k}</span><b class="num">${(v/tot*100).toFixed(0)}%</b></div>`).join("");
+  el("donutLeg").innerHTML=segs.map(([k,v])=>`<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;margin:3px 0"><i class="dot" style="background:${cor(k)}"></i><span style="flex:1">${ICON[k]?ICON[k]+' ':''}${k}</span><b class="num">${(v/tot*100).toFixed(0)}%</b></div>`).join("");
   el("donutCap").textContent=filtroMes==="Ano"?"Média mensal":"Gasto de "+filtroMes;
 }
 function drawGauge(t){const p=Math.max(0,Math.min(t,100))/100,a0=-Math.PI/2,a1=a0+p*2*Math.PI;
@@ -183,7 +184,25 @@ function renderIphone(){
 }
 ['ipPreco','ipMeses'].forEach(function(id){el(id).addEventListener('input',renderIphone);});
 [].forEach.call(el('ipModoSel').querySelectorAll('.chip'),function(b){b.onclick=function(){ipModo=b.dataset.modo;[].forEach.call(el('ipModoSel').querySelectorAll('.chip'),function(x){x.classList.toggle('on',x===b);});renderIphone();};});
-function renderAll(){setupMes();renderVisao();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();}
+
+var PT_BANCOS=[['Itau - investido',55789,'#ec7000'],['Itau - conta',14603,'#ec7000'],['Nubank',10687,'#820ad1'],['Bradesco',3500,'#cc092f']];
+function renderPatrimonio(){
+  var onix=+el('ptOnix').value,cg=+el('ptCG').value,gs=+el('ptGS').value,ls=+el('ptLS').value;
+  el('oPtOnix').textContent=BRL(onix);el('oPtCG').textContent=BRL(cg);el('oPtGS').textContent=BRL(gs);el('oPtLS').textContent=ls>0?BRL(ls):'a definir';
+  var reservas=84578, veic=onix+cg+gs, bens=reservas+veic+ls, divida=29200, liquido=bens-divida;
+  el('ptKpis').innerHTML='<div class="kpi rec"><div class="l">Patrimonio liquido</div><div class="v serif">'+BRL(liquido)+'</div><div class="h">bens menos dividas</div></div>'+
+    '<div class="kpi wt"><div class="l">Reserva & investimentos</div><div class="v serif pos">'+BRL(reservas)+'</div><div class="h">dinheiro guardado</div></div>'+
+    '<div class="kpi wt"><div class="l">Veiculos (FIPE)</div><div class="v serif">'+BRL(veic)+'</div><div class="h">Onix + 2 motos</div></div>'+
+    '<div class="kpi des"><div class="l">Divida (faculdade)</div><div class="v serif">'+BRL(divida)+'</div><div class="h">ate dez/2027</div></div>';
+  var mx=Math.max.apply(null,PT_BANCOS.map(function(b){return b[1];}));
+  el('ptBancos').innerHTML=PT_BANCOS.map(function(b){return '<div class="row"><div class="nm"><i class="dot" style="background:'+b[2]+'"></i>'+b[0]+'</div><div class="bar"><i style="width:'+Math.max(b[1]/mx*100,2)+'%;background:'+b[2]+'"></i></div><div class="vl num">'+BRL(b[1])+'</div></div>';}).join('')+'<div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><div class="nm" style="font-weight:500">Total guardado</div><div class="bar" style="background:none"></div><div class="vl num" style="font-weight:500">'+BRL(reservas)+'</div></div>';
+  var linhas=[['Reserva & investimentos',reservas],['Carro Onix 2024',onix],['Moto CG Fan 2008',cg],['Moto BMW GS650 2013',gs],['Leve Sonho (participacao)',ls]];
+  el('ptResumo').innerHTML='<table>'+linhas.map(function(l){return '<tr><td>'+l[0]+'</td><td class="n">'+(l[1]>0?BRL(l[1]):'a definir')+'</td></tr>';}).join('')+
+    '<tr><td>(menos) Divida faculdade</td><td class="n neg">-'+BRL(divida)+'</td></tr>'+
+    '<tr style="border-top:2px solid var(--line)"><td style="font-weight:600">Patrimonio liquido</td><td class="n" style="font-weight:600">'+BRL(liquido)+'</td></tr></table>';
+}
+['ptOnix','ptCG','ptGS','ptLS'].forEach(function(id){el(id).addEventListener('input',renderPatrimonio);});
+function renderAll(){setupMes();renderVisao();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
