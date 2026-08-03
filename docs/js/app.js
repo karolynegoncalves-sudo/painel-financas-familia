@@ -7,7 +7,7 @@ const BRL=v=>"R$ "+Math.round(v).toLocaleString("pt-BR");
 const el=id=>document.getElementById(id);
 const CORES={"Alimentação":"#e2593f","Saúde e Bem-estar":"#159a80","Educação":"#e6a63a","Transporte":"#5f8c7d","Moradia":"#c9784f","Compras":"#d95f7a","Cuidados Pessoais":"#8a6f9e","Pets":"#b0894a","Lazer":"#4fa08d","Assinaturas":"#7d9b6a","Tarifas":"#9aa7a1","Telefonia/Internet":"#c98f5a","Outros":"#aab4ae"};
 const cor=k=>CORES[k]||"#9aa7a1";
-const MESES=Object.keys(D.mensal);
+let MESES=[];
 let filtroMes="Ano",aberta=null;
 
 // tabs
@@ -19,8 +19,8 @@ el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="$
 });
 
 // filtro mês
-el("fMes").innerHTML=['Ano',...MESES].map(m=>`<button class="chip${m==='Ano'?' on':''}" data-m="${m}">${m==='Ano'?'Ano (média)':m}</button>`).join("");
-[...el("fMes").querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{filtroMes=b.dataset.m;[...el("fMes").querySelectorAll('.chip')].forEach(x=>x.classList.toggle('on',x===b));renderVisao();});
+function setupMes(){MESES=Object.keys(D.mensal);el("fMes").innerHTML=['Ano',...MESES].map(m=>`<button class="chip${m==='Ano'?' on':''}" data-m="${m}">${m==='Ano'?'Ano (média)':m}</button>`).join("");
+[...el("fMes").querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{filtroMes=b.dataset.m;[...el("fMes").querySelectorAll('.chip')].forEach(x=>x.classList.toggle('on',x===b));renderVisao();});}
 
 function catAtual(){return filtroMes==="Ano"?D.macro:(D.mes_macro[filtroMes]||{});}
 function kpiAtual(){if(filtroMes==="Ano")return{rec:D.kpi.renda,des:D.kpi.gasto,sob:D.kpi.sobra,taxa:D.kpi.taxa};const m=D.mensal[filtroMes];return{rec:m.receita,des:m.despesa,sob:m.saldo,taxa:m.receita?m.saldo/m.receita*100:0};}
@@ -163,7 +163,7 @@ function renderProj(){
 }
 ['pAlu','pCut','pMove'].forEach(id=>el(id).addEventListener('input',renderProj));
 
-function renderAll(){renderVisao();renderCat();renderPessoa();renderMetas();renderProj();}
+function renderAll(){setupMes();renderVisao();renderCat();renderPessoa();renderMetas();renderProj();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
