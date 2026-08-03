@@ -213,7 +213,7 @@ function initGoogle(){
 async function onCred(r){idToken=r.credential;sessionStorage.setItem('id_token',idToken);await verificar(idToken);}
 async function verificar(token){
   var data;
-  try{const resp=await fetch(CFG.APPS_SCRIPT_URL+'?token='+encodeURIComponent(token));data=await resp.json();}catch(e){data={error:String(e)};}
+  try{const resp=await fetch(CFG.APPS_SCRIPT_URL+'?token='+encodeURIComponent(token)+'&_='+Date.now(),{cache:'no-store'});data=await resp.json();}catch(e){data={error:String(e)};}
   if(data&&data.error==='not_authorized'){document.getElementById('deniedEmail').textContent=decodeJwtEmail(token);document.getElementById('loginDenied').style.display='block';sessionStorage.removeItem('id_token');idToken=null;return;}
   if(data&&data.error){document.getElementById('loginGate').innerHTML='<p>Erro ao conectar com o painel: '+data.error+'</p>';return;}
   D=data;
