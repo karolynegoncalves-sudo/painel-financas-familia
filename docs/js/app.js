@@ -163,7 +163,27 @@ function renderProj(){
 }
 ['pAlu','pCut','pMove'].forEach(id=>el(id).addEventListener('input',renderProj));
 
-function renderAll(){setupMes();renderVisao();renderCat();renderPessoa();renderMetas();renderProj();}
+
+let ipModo='juntar';
+function renderIphone(){
+  var preco=+el('ipPreco').value, meses=+el('ipMeses').value, total=preco*2;
+  el('oIpPreco').textContent=BRL(preco);
+  el('oIpMeses').textContent=meses+(meses>1?' meses':' mes');
+  var sobra=(D&&D.kpi)?D.kpi.sobra:4515;
+  var porMes=total/meses, pct=porMes/sobra*100, cabe=porMes<=sobra, msg;
+  if(ipModo==='juntar'){
+    msg='Guardando <b>'+BRL(porMes)+'/mes</b> por '+meses+' meses, voces compram os 2 <b>a vista</b> ('+BRL(total)+') <b>sem juros</b>. Enquanto junta, o dinheiro ainda rende na reserva. E o caminho mais barato.';
+  }else{
+    var j=0.03, comJuros=meses<=12?porMes:(total*j/(1-Math.pow(1+j,-meses)));
+    msg='Parcelado em '+meses+'x: ~<b>'+BRL(comJuros)+'/mes</b> ('+(meses<=12?'sem juros se a loja parcelar sem juros':'com juros de cartao ~3% a.m.')+'). Compromete a sobra por '+meses+' meses. <b>Juntar sai melhor</b> — evita juros.';
+  }
+  el('ipResult').innerHTML='<div style="height:20px;border-radius:6px;background:var(--surface-2);overflow:hidden"><div style="width:'+Math.min(pct,100)+'%;height:100%;background:'+(cabe?'var(--teal)':'var(--coral)')+'"></div></div>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px"><span>Sai <b>'+BRL(porMes)+'/mes</b></span><span>'+Math.round(pct)+'% da sobra ('+BRL(sobra)+')</span></div>'+
+    '<div class="callout '+(cabe?'ok':'')+'">'+(cabe?'✅ Cabe na sobra mensal de voces. ':'⚠️ Passa da sobra atual, alonguem o prazo. ')+msg+'</div>';
+}
+['ipPreco','ipMeses'].forEach(function(id){el(id).addEventListener('input',renderIphone);});
+[].forEach.call(el('ipModoSel').querySelectorAll('.chip'),function(b){b.onclick=function(){ipModo=b.dataset.modo;[].forEach.call(el('ipModoSel').querySelectorAll('.chip'),function(x){x.classList.toggle('on',x===b);});renderIphone();};});
+function renderAll(){setupMes();renderVisao();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}

@@ -9,6 +9,7 @@
 </head>
 <body>
 <div id="loginGate">
+  <img src="img/logo.png" alt="Logo" onerror="this.style.display='none'" style="max-height:76px;margin:0 auto 16px;display:block;border-radius:12px">
   <div class="eyebrow">Finanças da Família</div>
   <h1>Karol &amp; Vinícius</h1>
   <p>Painel privado do casal. Acesso restrito — entre com a conta Google que foi convidada.</p>
@@ -18,8 +19,11 @@
 <div id="app" style="display:none">
   <div class="wrap"><div class="userbar"><span id="userEmail"></span><button id="btnSair">Sair</button></div></div>
   <div class="wrap">
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px">
-    <div><h1>Finanças da Família — Karol &amp; Vinícius</h1><div class="sub">Extratos reais · Jan–Jun 2026 · dados classificados por vocês</div></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <img src="img/logo.png" alt="" onerror="this.style.display='none'" style="max-height:48px;border-radius:9px">
+      <div><h1>Finanças da Família — Karol &amp; Vinícius</h1><div class="sub">Extratos reais · Jan–Jun 2026 · dados classificados por vocês</div></div>
+    </div>
   </div>
   <div class="tabs" id="tabs"></div>
 
@@ -76,6 +80,13 @@
         <div><div class="sub">Por semana</div><div class="serif n pos" id="dSem"></div></div>
         <div><div class="sub">Por dia</div><div class="serif n pos" id="dDia"></div></div></div>
       <div class="note" id="dNote"></div></div>
+    <div class="card"><h2>🎯 Meta: 2 iPhone 17 Pro Max (256GB — branco + azul)</h2>
+      <p class="cap">Juntar (poupar) ou parcelar? Ajuste o preço e o prazo e veja quanto sai por mês.</p>
+      <div class="slider"><label>Preço por aparelho</label><input type="range" id="ipPreco" min="8000" max="16000" step="100" value="11000"><div class="out" id="oIpPreco"></div></div>
+      <div class="filtros" id="ipModoSel" style="margin:4px 0 12px"><button class="chip on" data-modo="juntar">Juntar (poupar)</button><button class="chip" data-modo="parcelar">Parcelar (a prazo)</button></div>
+      <div class="slider"><label>Em quantos meses</label><input type="range" id="ipMeses" min="1" max="24" step="1" value="12"><div class="out" id="oIpMeses"></div></div>
+      <div id="ipResult" style="margin-top:14px"></div>
+    </div>
   </div>
 
   <!-- PROJEÇÃO -->
@@ -91,7 +102,10 @@
       <div class="note">Faculdade dos dois (~R$ 1.700/mês) termina em dez/2027 — a partir de 2028 essa folga vira sobra extra. A reserva parte de R$ 84.578.</div></div>
   </div>
 
-  <div class="note">Meses completos (cartão + Bradesco + Itaú): Jan–Jun/2026. Valores por categoria = médias mensais. Saúde já considera o reembolso do Kaike e a psicóloga.</div>
+  <div style="text-align:center;margin-top:34px">
+    <img src="img/logo.png" alt="" onerror="this.style.display='none'" style="max-height:56px;opacity:.9;border-radius:10px">
+    <div class="note" style="text-align:center">Meses completos (cartão + Bradesco + Itaú): Jan–Jun/2026. Valores por categoria = médias mensais. Saúde já considera o reembolso do Kaike e a psicóloga.</div>
+  </div>
 </div>
 </div>
 <script src="js/config.js"></script>
