@@ -1,0 +1,187 @@
+const CFG=window.PAINEL_CONFIG||{};
+let D=null;
+let idToken=sessionStorage.getItem('id_token')||null;
+function decodeJwtEmail(t){try{return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).email||'';}catch(e){return '';}}
+
+const BRL=v=>"R$ "+Math.round(v).toLocaleString("pt-BR");
+const el=id=>document.getElementById(id);
+const CORES={"Alimentação":"#e2593f","Saúde e Bem-estar":"#159a80","Educação":"#e6a63a","Transporte":"#5f8c7d","Moradia":"#c9784f","Compras":"#d95f7a","Cuidados Pessoais":"#8a6f9e","Pets":"#b0894a","Lazer":"#4fa08d","Assinaturas":"#7d9b6a","Tarifas":"#9aa7a1","Telefonia/Internet":"#c98f5a","Outros":"#aab4ae"};
+const cor=k=>CORES[k]||"#9aa7a1";
+const MESES=Object.keys(D.mensal);
+let filtroMes="Ano",aberta=null;
+
+// tabs
+const TABS=[["visao","Visão geral"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["proj","Projeção 2027"]];
+el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="${t[0]}">${t[1]}</button>`).join("");
+[...document.querySelectorAll('.tab')].forEach(b=>b.onclick=()=>{
+  [...document.querySelectorAll('.tab')].forEach(x=>x.classList.toggle('on',x===b));
+  [...document.querySelectorAll('.page')].forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.p));
+});
+
+// filtro mês
+el("fMes").innerHTML=['Ano',...MESES].map(m=>`<button class="chip${m==='Ano'?' on':''}" data-m="${m}">${m==='Ano'?'Ano (média)':m}</button>`).join("");
+[...el("fMes").querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{filtroMes=b.dataset.m;[...el("fMes").querySelectorAll('.chip')].forEach(x=>x.classList.toggle('on',x===b));renderVisao();});
+
+function catAtual(){return filtroMes==="Ano"?D.macro:(D.mes_macro[filtroMes]||{});}
+function kpiAtual(){if(filtroMes==="Ano")return{rec:D.kpi.renda,des:D.kpi.gasto,sob:D.kpi.sobra,taxa:D.kpi.taxa};const m=D.mensal[filtroMes];return{rec:m.receita,des:m.despesa,sob:m.saldo,taxa:m.receita?m.saldo/m.receita*100:0};}
+
+function arc(cx,cy,r,a0,a1){const p=(a,rr)=>[cx+rr*Math.cos(a),cy+rr*Math.sin(a)];const[x0,y0]=p(a0,r),[x1,y1]=p(a1,r);const b=a1-a0>Math.PI?1:0;return`M ${x0} ${y0} A ${r} ${r} 0 ${b} 1 ${x1} ${y1}`;}
+const SUBPAL=['#e2593f','#159a80','#e6a63a','#5f8c7d','#c9784f','#d95f7a','#8a6f9e','#b0894a','#4fa08d','#c98f5a'];
+function pieSVG(id,entries,colFn){
+  const e=entries.filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);const tot=e.reduce((s,x)=>s+x[1],0)||1;
+  let a=-Math.PI/2,s=`<svg viewBox="0 0 170 170">`;
+  if(e.length===1){s+=`<circle cx="85" cy="85" r="80" fill="${colFn(e[0][0],0)}"/>`;}
+  else e.forEach(([k,v],i)=>{const a1=a+v/tot*2*Math.PI,x0=85+80*Math.cos(a),y0=85+80*Math.sin(a),x1=85+80*Math.cos(a1),y1=85+80*Math.sin(a1),big=a1-a>Math.PI?1:0;
+    s+=`<path d="M85 85 L ${x0.toFixed(1)} ${y0.toFixed(1)} A 80 80 0 ${big} 1 ${x1.toFixed(1)} ${y1.toFixed(1)} Z" fill="${colFn(k,i)}" stroke="var(--surface)" stroke-width="1.5"/>`;a=a1;});
+  s+=`<circle cx="85" cy="85" r="35" fill="var(--surface)"/><text x="85" y="81" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">total</text><text x="85" y="97" font-size="13" fill="var(--ink)" text-anchor="middle" class="serif">${BRL(tot)}</text></svg>`;
+  el(id).innerHTML=s;
+}
+function barsHTML(entries,colFn,clickable){
+  const e=entries.filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);const mx=e[0]?e[0][1]:1;
+  return e.map((x,i)=>`<div class="row${clickable?' clk':''}" ${clickable?`data-k="${x[0]}"`:''}><div class="nm"><i class="dot" style="background:${colFn(x[0],i)}"></i>${x[0]}</div><div class="bar"><i style="width:${Math.max(x[1]/mx*100,2)}%;background:${colFn(x[0],i)}"></i></div><div class="vl num">${BRL(x[1])}</div></div>`).join("");
+}
+
+// ---------- VISÃO ----------
+function renderVisao(){
+  el("ctx");const k=kpiAtual();
+  el("kpis").innerHTML=`
+   <div class="kpi rec"><div class="l">Receita</div><div class="v serif">${BRL(k.rec)}</div><div class="h">${filtroMes==="Ano"?"por mês":filtroMes}</div></div>
+   <div class="kpi des"><div class="l">Despesa</div><div class="v serif">${BRL(k.des)}</div><div class="h">${filtroMes==="Ano"?"por mês":filtroMes}</div></div>
+   <div class="kpi sal"><div class="l">Sobra</div><div class="v serif">${BRL(k.sob)}</div><div class="h">pra investir</div></div>
+   <div class="kpi wt"><div class="l">Taxa de poupança</div><div class="v serif ${k.taxa>=20?'pos':'neg'}">${k.taxa.toFixed(0)}%</div><div class="h">meta 20%</div></div>
+   <div class="kpi wt"><div class="l">Reserva</div><div class="v serif pos">R$ 84.578</div><div class="h">130% da meta</div></div>`;
+  drawCombo();drawDonut(catAtual());drawGauge(k.taxa);
+}
+function drawCombo(){
+  const W=640,H=230,pad=32,n=MESES.length,gw=(W-pad*2)/n;
+  const mx=Math.max(...MESES.flatMap(m=>[D.mensal[m].receita,D.mensal[m].despesa]));
+  const y=v=>H-pad-(v/mx)*(H-pad*2);let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  for(let i=0;i<4;i++){const gy=pad+i*(H-pad*2)/3;s+=`<line x1="${pad}" y1="${gy}" x2="${W-pad}" y2="${gy}" stroke="var(--line)"/><text x="2" y="${gy+3}" font-size="9" fill="var(--ink-3)">${Math.round(mx*(1-i/3)/1000)}k</text>`;}
+  const bw=gw*.28;
+  MESES.forEach((m,i)=>{const cx=pad+gw*i+gw/2,d=D.mensal[m];
+    s+=`<rect x="${cx-bw-2}" y="${y(d.receita)}" width="${bw}" height="${H-pad-y(d.receita)}" rx="2.5" fill="var(--teal)"/><rect x="${cx+2}" y="${y(d.despesa)}" width="${bw}" height="${H-pad-y(d.despesa)}" rx="2.5" fill="var(--coral)"/><text x="${cx}" y="${H-pad+13}" font-size="11" fill="var(--ink-2)" text-anchor="middle">${m}</text>`;});
+  const pts=MESES.map((m,i)=>[pad+gw*i+gw/2,y(D.mensal[m].saldo)]);
+  s+=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--amber)" stroke-width="2.5"/>`;
+  pts.forEach(p=>s+=`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="var(--amber)" stroke="var(--surface)" stroke-width="1.5"/>`);
+  el("combo").innerHTML=s+`</svg>`;
+}
+function drawDonut(cat){
+  const ents=Object.entries(cat).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]);const tot=ents.reduce((s,e)=>s+e[1],0)||1;
+  const top=ents.slice(0,6),outros=ents.slice(6).reduce((s,e)=>s+e[1],0),segs=[...top];if(outros>0)segs.push(["Outros",outros]);
+  let a=-Math.PI/2,s=`<svg viewBox="0 0 160 160">`;
+  segs.forEach(([k,v])=>{const a1=a+v/tot*2*Math.PI;s+=`<path d="${arc(80,80,60,a,a1-.02)}" stroke="${cor(k)}" stroke-width="22" fill="none" stroke-linecap="round"/>`;a=a1;});
+  el("donut").innerHTML=s+`<text x="80" y="75" font-size="11" fill="var(--ink-3)" text-anchor="middle">gasto/mês</text><text x="80" y="94" font-size="16" fill="var(--ink)" text-anchor="middle" class="serif">${BRL(tot)}</text></svg>`;
+  el("donutLeg").innerHTML=segs.map(([k,v])=>`<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;margin:3px 0"><i class="dot" style="background:${cor(k)}"></i><span style="flex:1">${k}</span><b class="num">${(v/tot*100).toFixed(0)}%</b></div>`).join("");
+  el("donutCap").textContent=filtroMes==="Ano"?"Média mensal":"Gasto de "+filtroMes;
+}
+function drawGauge(t){const p=Math.max(0,Math.min(t,100))/100,a0=-Math.PI/2,a1=a0+p*2*Math.PI;
+  el("gauge").innerHTML=`<svg viewBox="0 0 150 150"><circle cx="75" cy="75" r="56" stroke="var(--surface-2)" stroke-width="16" fill="none"/><path d="${arc(75,75,56,a0,a1)}" stroke="var(--teal)" stroke-width="16" fill="none" stroke-linecap="round"/><text x="75" y="72" font-size="25" fill="var(--ink)" text-anchor="middle" class="serif">${t.toFixed(0)}%</text><text x="75" y="91" font-size="10" fill="var(--ink-3)" text-anchor="middle">poupança</text></svg>`;}
+
+// ---------- CATEGORIAS ----------
+let catSel=null;
+function renderCat(){
+  if(!catSel){
+    const ents=Object.entries(D.macro);
+    pieSVG('catPie',ents,k=>cor(k));
+    el('catbars').innerHTML=barsHTML(ents,k=>cor(k),true);
+    [...el('catbars').querySelectorAll('.row')].forEach(r=>r.onclick=()=>{catSel=r.dataset.k;renderCat();});
+    el('catBack').innerHTML='';
+    el('catTitle').textContent='Despesas por categoria';
+    el('catCap').textContent='Clique numa categoria (na lista) pra ver as subcategorias no gráfico.';
+  }else{
+    const ents=Object.entries(D.sub[catSel]||{});
+    pieSVG('catPie',ents,(k,i)=>SUBPAL[i%SUBPAL.length]);
+    el('catbars').innerHTML=barsHTML(ents,(k,i)=>SUBPAL[i%SUBPAL.length],false);
+    el('catBack').innerHTML=`<button class="chip" id="catBackBtn" style="margin-top:12px">← voltar às categorias</button>`;
+    el('catBackBtn').onclick=()=>{catSel=null;renderCat();};
+    el('catTitle').textContent=catSel+' → subcategorias';
+    el('catCap').textContent='Detalhe de '+catSel+'. Clique em "voltar" pra ver todas as categorias.';
+  }
+  const tot=D.subflat.reduce((s,x)=>s+x.valor,0);
+  el("rankBody").innerHTML=D.subflat.map((x,i)=>`<tr><td>${i+1}</td><td><i class="dot" style="background:${cor(x.macro)}"></i> ${x.sub}</td><td style="color:var(--ink-2)">${x.macro}</td><td class="n">${BRL(x.valor)}</td><td class="n">${(x.valor/tot*100).toFixed(1)}%</td></tr>`).join("");
+}
+
+// ---------- PESSOAS ----------
+let selP='Família';
+function renderPessoa(){
+  const P=D.p3tot;
+  el("p3kpis").innerHTML=`<div class="kpi rec"><div class="l">Família</div><div class="v serif">${BRL(P['Família']||0)}</div><div class="h">compartilhado/mês</div></div>
+   <div class="kpi wt"><div class="l">Karol (pessoal)</div><div class="v serif">${BRL(P['Karol']||0)}</div><div class="h">só dela</div></div>
+   <div class="kpi wt"><div class="l">Vinícius (pessoal)</div><div class="v serif">${BRL(P['Vinícius']||0)}</div><div class="h">só dele</div></div>`;
+  el('p3sel').innerHTML=['Família','Karol','Vinícius'].map(p=>`<button class="chip${p===selP?' on':''}" data-p="${p}">${p} · ${BRL(P[p]||0)}</button>`).join("");
+  [...el('p3sel').querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{selP=b.dataset.p;renderPessoa();});
+  const ents=Object.entries(D.p3[selP]||{});
+  pieSVG('p3pie',ents,k=>cor(k));
+  el('p3bars').innerHTML=barsHTML(ents,k=>cor(k),false);
+  el('p3title').textContent='Gastos de '+selP;
+  el('p3cap').textContent=selP==='Família'?'Gastos compartilhados do casal (o que não é isolado de uma pessoa).':'Só o que é gasto isolado de '+selP+'.';
+}
+
+// ---------- METAS & DELIVERY ----------
+function renderMetas(){
+  const deli=+el("sDeli").value,rest=+el("sRest").value,merc=+el("sMerc").value;
+  el("oDeli").textContent=BRL(deli);el("oRest").textContent=BRL(rest);el("oMerc").textContent=BRL(merc);
+  const corte=(579-deli)+(804-rest)+(2244-merc);
+  const meta=1200,pct=Math.min(corte/meta*100,100);
+  const ok=corte>=meta;
+  el("cutResult").innerHTML=`<div style="height:20px;border-radius:6px;background:var(--surface-2);overflow:hidden"><div style="width:${pct}%;height:100%;background:${ok?'var(--teal)':'var(--amber)'}"></div></div>
+   <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px"><span>Corte total: <b>${BRL(corte)}/mês</b></span><span>Meta: R$ 1.200</span></div>
+   <div class="callout ${ok?'ok':''}">${ok?`✅ Meta batida! Você corta <b>${BRL(corte)}/mês</b> = <b>${BRL(corte*12)}/ano</b> a mais pra investir.`:`Faltam <b>${BRL(meta-corte)}/mês</b> pra meta. Puxe mais o delivery ou o restaurante.`}</div>`;
+  // teto delivery
+  const sem=deli/4.33,dia=deli/30;
+  el("dMes").textContent=BRL(deli);el("dSem").textContent=BRL(sem);el("dDia").textContent=BRL(dia);
+  el("dNote").innerHTML=`Hoje o delivery é R$ 579/mês (~R$ 19/dia). Com o teto de <b>${BRL(deli)}/mês</b>, o limite vira <b>${BRL(sem)}/semana</b> ou <b>${BRL(dia)}/dia</b>. Combine: dias de semana sem delivery, e um "dia de delivery" no fim de semana dentro do teto.`;
+}
+['sDeli','sRest','sMerc'].forEach(id=>el(id).addEventListener('input',renderMetas));
+
+// ---------- PROJEÇÃO ----------
+const MMESES=['Ago/26','Set/26','Out/26','Nov/26','Dez/26','Jan/27','Fev/27','Mar/27','Abr/27','Mai/27','Jun/27','Jul/27','Ago/27','Set/27','Out/27','Nov/27','Dez/27'];
+function renderProj(){
+  const alu=+el("pAlu").value,cut=+el("pCut").value,move=+el("pMove").value;
+  el("oAlu").textContent=BRL(alu);el("oCut").textContent=BRL(cut);el("oMove").textContent=move===0?'já':MMESES[move]||'—';
+  const renda=D.kpi.renda,baseG=D.kpi.gasto;let reserva=D.kpi.reserva;const serie=[];
+  for(let i=0;i<MMESES.length;i++){
+    const g=baseG+(i>=move?alu:0)-cut;const sob=renda-g;reserva+=sob;
+    serie.push({m:MMESES[i],gasto:g,sobra:sob,reserva});
+  }
+  const fim=serie[serie.length-1],sobFinal=renda-(baseG+alu-cut);
+  el("projKpis").innerHTML=`<div class="kpi wt"><div class="l">Sobra/mês (já mudado)</div><div class="v serif ${sobFinal>=0?'pos':'neg'}">${BRL(sobFinal)}</div><div class="h">renda − gasto − aluguel + corte</div></div>
+   <div class="kpi rec"><div class="l">Reserva em dez/2027</div><div class="v serif">${BRL(fim.reserva)}</div><div class="h">de R$ 84.578 hoje</div></div>
+   <div class="kpi sal"><div class="l">Vão investir até lá</div><div class="v serif">${BRL(fim.reserva-D.kpi.reserva)}</div><div class="h">em ${MMESES.length} meses</div></div>`;
+  // chart: reserva (área teal) + gasto (linha coral)
+  const W=660,H=210,pad=34,n=serie.length;
+  const rmax=Math.max(...serie.map(s=>s.reserva)),gmax=Math.max(...serie.map(s=>s.gasto))*1.15;
+  const x=i=>pad+i*(W-pad*2)/(n-1),yr=v=>H-pad-(v/rmax)*(H-pad*2),yg=v=>H-pad-(v/gmax)*(H-pad*2);
+  let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  const rpts=serie.map((d,i)=>[x(i),yr(d.reserva)]);
+  s+=`<polygon points="${pad},${H-pad} ${rpts.map(p=>p.join(',')).join(' ')} ${W-pad},${H-pad}" fill="var(--teal-soft)"/>`;
+  s+=`<polyline points="${rpts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--teal)" stroke-width="2.5"/>`;
+  const gpts=serie.map((d,i)=>[x(i),yg(d.gasto)]);
+  s+=`<polyline points="${gpts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--coral)" stroke-width="2" stroke-dasharray="4 3"/>`;
+  serie.forEach((d,i)=>{if(i%4===0||i===n-1)s+=`<text x="${x(i)}" y="${H-pad+13}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">${d.m}</text>`;});
+  el("projChart").innerHTML=s+`</svg>`;
+}
+['pAlu','pCut','pMove'].forEach(id=>el(id).addEventListener('input',renderProj));
+
+function renderAll(){renderVisao();renderCat();renderPessoa();renderMetas();renderProj();}
+function initGoogle(){
+  var g=document.getElementById('loginGate');
+  if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
+  google.accounts.id.initialize({client_id:CFG.GOOGLE_CLIENT_ID,callback:onCred});
+  google.accounts.id.renderButton(document.getElementById('googleBtn'),{theme:'outline',size:'large',text:'signin_with',shape:'pill'});
+  if(idToken) verificar(idToken);
+}
+async function onCred(r){idToken=r.credential;sessionStorage.setItem('id_token',idToken);await verificar(idToken);}
+async function verificar(token){
+  var data;
+  try{const resp=await fetch(CFG.APPS_SCRIPT_URL+'?token='+encodeURIComponent(token));data=await resp.json();}catch(e){data={error:String(e)};}
+  if(data&&data.error==='not_authorized'){document.getElementById('deniedEmail').textContent=decodeJwtEmail(token);document.getElementById('loginDenied').style.display='block';sessionStorage.removeItem('id_token');idToken=null;return;}
+  if(data&&data.error){document.getElementById('loginGate').innerHTML='<p>Erro ao conectar com o painel: '+data.error+'</p>';return;}
+  D=data;
+  document.getElementById('userEmail').textContent=data.email||'';
+  document.getElementById('loginGate').style.display='none';
+  document.getElementById('app').style.display='block';
+  renderAll();
+}
+document.getElementById('btnSair').addEventListener('click',function(){sessionStorage.removeItem('id_token');location.reload();});
+window.addEventListener('load',initGoogle);
