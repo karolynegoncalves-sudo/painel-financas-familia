@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=EB+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
 :root,:root[data-theme="dark"],:root[data-theme="light"]{--bg:#ffffff;--surface:#ffffff;--surface-2:#f1f3f1;--ink:#000000;--ink-2:#333333;--ink-3:#6b716c;--line:#e0e4e0;--teal:#0f8f74;--coral:#d8492f;--amber:#d99a2b;--teal-soft:#e2f1ec;--coral-soft:#fbe7e1;--radius:12px}
 @media(prefers-color-scheme:dark){:root{--bg:#ffffff;--surface:#ffffff;--surface-2:#f1f3f1;--ink:#000000;--ink-2:#333333;--ink-3:#6b716c;--line:#e0e4e0;--teal:#0f8f74;--coral:#d8492f;--amber:#d99a2b;--teal-soft:#e2f1ec;--coral-soft:#fbe7e1}}
@@ -62,3 +62,8 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 .userbar{display:flex;justify-content:flex-end;align-items:center;gap:12px;font-size:12px;color:var(--ink-2);margin-bottom:4px}
 .userbar button{font:inherit;font-size:12px;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer}
 .userbar button:hover{border-color:var(--coral);color:var(--coral)}
+
+.eyebrow{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--teal);font-weight:600;margin-bottom:5px}
+.title-hero{font-family:"Anton","Inter",sans-serif;font-weight:400;font-size:46px;letter-spacing:1.2px;line-height:1;margin:0;color:var(--ink)}
+.logo-square{width:150px;height:150px;object-fit:cover;object-position:center;border-radius:18px;flex-shrink:0}
+@media(max-width:600px){.title-hero{font-size:34px}.logo-square{width:110px;height:110px}}
