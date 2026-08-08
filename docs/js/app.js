@@ -104,19 +104,31 @@ function renderCat(){
 }
 
 // ---------- PESSOAS ----------
-let selP='Família';
+let selP='Família', p3Aberta=null;
 function renderPessoa(){
   const P=D.p3tot;
   el("p3kpis").innerHTML=`<div class="kpi rec"><div class="l">Família</div><div class="v serif">${BRL(P['Família']||0)}</div><div class="h">compartilhado/mês</div></div>
    <div class="kpi wt"><div class="l">Karol (pessoal)</div><div class="v serif">${BRL(P['Karol']||0)}</div><div class="h">só dela</div></div>
    <div class="kpi wt"><div class="l">Vinícius (pessoal)</div><div class="v serif">${BRL(P['Vinícius']||0)}</div><div class="h">só dele</div></div>`;
   el('p3sel').innerHTML=['Família','Karol','Vinícius'].map(p=>`<button class="chip${p===selP?' on':''}" data-p="${p}">${p} · ${BRL(P[p]||0)}</button>`).join("");
-  [...el('p3sel').querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{selP=b.dataset.p;renderPessoa();});
-  const ents=Object.entries(D.p3[selP]||{});
-  pieSVG('p3pie',ents,k=>cor(k));
-  el('p3bars').innerHTML=barsHTML(ents,k=>cor(k),false);
-  el('p3title').textContent='Gastos de '+selP;
-  el('p3cap').textContent=selP==='Família'?'Gastos compartilhados do casal (o que não é isolado de uma pessoa).':'Só o que é gasto isolado de '+selP+'.';
+  [...el('p3sel').querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{selP=b.dataset.p;p3Aberta=null;renderPessoa();});
+  const temSub = !!(D.p3sub && D.p3sub[selP]);
+  if(!p3Aberta){
+    const ents=Object.entries(D.p3[selP]||{});
+    pieSVG('p3pie',ents,k=>cor(k));
+    el('p3bars').innerHTML=barsHTML(ents,k=>cor(k),temSub);
+    if(temSub) [...el('p3bars').querySelectorAll('.row')].forEach(r=>r.onclick=()=>{p3Aberta=r.dataset.k;renderPessoa();});
+    el('p3title').textContent='Gastos de '+selP;
+    el('p3cap').textContent=(selP==='Família'?'Gastos compartilhados do casal (o que não é isolado de uma pessoa).':'Só o que é gasto isolado de '+selP+'.')+(temSub?' Clique numa categoria pra ver as subcategorias.':'');
+  }else{
+    const subs=Object.entries((D.p3sub[selP]||{})[p3Aberta]||{});
+    pieSVG('p3pie',subs,(k,i)=>SUBPAL[i%SUBPAL.length]);
+    el('p3bars').innerHTML=barsHTML(subs,(k,i)=>SUBPAL[i%SUBPAL.length],false)+
+      `<button class="chip" id="p3BackBtn" style="margin-top:12px">← voltar às categorias</button>`;
+    el('p3BackBtn').onclick=()=>{p3Aberta=null;renderPessoa();};
+    el('p3title').textContent=selP+' · '+p3Aberta+' → subcategorias';
+    el('p3cap').textContent='Detalhe de '+p3Aberta+' em '+selP+'.';
+  }
 }
 
 // ---------- METAS & DELIVERY ----------
