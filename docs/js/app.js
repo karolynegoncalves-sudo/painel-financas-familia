@@ -50,7 +50,7 @@ function renderVisao(){
    <div class="kpi des"><div class="l">Despesa</div><div class="v serif">${BRL(k.des)}</div><div class="h">${filtroMes==="Ano"?"por mês":filtroMes}</div></div>
    <div class="kpi sal"><div class="l">Sobra</div><div class="v serif">${BRL(k.sob)}</div><div class="h">pra investir</div></div>
    <div class="kpi wt"><div class="l">Taxa de poupança</div><div class="v serif ${k.taxa>=20?'pos':'neg'}">${k.taxa.toFixed(0)}%</div><div class="h">meta 20%</div></div>
-   <div class="kpi wt"><div class="l">Reserva</div><div class="v serif pos">R$ 84.578</div><div class="h">130% da meta</div></div>`;
+   <div class="kpi wt"><div class="l">Reserva</div><div class="v serif pos">${BRL(D.kpi.reserva)}</div><div class="h">da aba Reservas</div></div>`;
   drawCombo();drawDonut(catAtual());drawGauge(k.taxa);
 }
 function drawCombo(){
