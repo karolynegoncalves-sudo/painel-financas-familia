@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças da Família — Karol & Vinícius</title>
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=14">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -25,7 +25,7 @@
       <div>
         <div class="eyebrow">Finanças da Família · Karol &amp; Vinícius</div>
         <h1 class="title-hero">PAINEL DE FINANÇAS</h1>
-        <div class="sub">Extratos reais · Jan–Jul 2026</div>
+        <div class="sub" id="subPeriodo">Extratos reais</div>
       </div>
     </div>
   </div>
@@ -46,7 +46,7 @@
         <div id="saldoContas"></div></div>
       <div class="card"><h2>Taxa de poupança &amp; reserva</h2><p class="cap">Quanto da renda sobra pra investir</p>
         <div style="display:flex;gap:16px;align-items:center"><div style="flex:0 0 150px"><div id="gauge"></div></div>
-        <div style="flex:1"><div style="font-size:12px;color:var(--ink-2)">Reserva já feita</div><div class="serif pos" style="font-size:25px" id="resVal"></div><div style="font-size:11.5px;color:var(--ink-3)">Meta de 9 meses: R$ 65.000.</div></div></div></div>
+        <div style="flex:1"><div style="font-size:12px;color:var(--ink-2)">Reserva já feita</div><div class="serif pos" style="font-size:25px" id="resVal"></div><div style="font-size:11.5px;color:var(--ink-3)" id="resMeta"></div></div></div></div>
     </div>
   </div>
 
@@ -72,16 +72,16 @@
         <div style="flex:0 0 180px"><div id="p3pie"></div></div>
         <div style="flex:1;min-width:180px" id="p3bars"></div>
       </div></div>
-    <div class="callout ok"><b>92% dos gastos são da família.</b> O gasto “de cada um com si mesmo” é baixíssimo (Karol R$ 751, boa parte psicóloga; Vinícius R$ 154). Ninguém está “gastando demais consigo” — vocês têm até espaço pra isso.</div>
+    <div class="callout ok" id="p3Callout"></div>
   </div>
 
   <!-- METAS & DELIVERY -->
   <div class="page" id="p-metas">
     <div class="card"><h2>Plano de corte — meta R$ 1.200/mês</h2>
-      <p class="cap">Ajuste os tetos de cada gasto de comida e veja quanto corta. Hoje: comer fora (restaurante + delivery) custa <b>R$ 1.383/mês</b>.</p>
-      <div class="slider"><label>Delivery (hoje R$ 579)</label><input type="range" id="sDeli" min="0" max="579" step="10" value="250"><div class="out" id="oDeli"></div></div>
-      <div class="slider"><label>Restaurante (hoje R$ 804)</label><input type="range" id="sRest" min="0" max="804" step="10" value="400"><div class="out" id="oRest"></div></div>
-      <div class="slider"><label>Mercado (hoje R$ 2.244)</label><input type="range" id="sMerc" min="1200" max="2244" step="20" value="1900"><div class="out" id="oMerc"></div></div>
+      <p class="cap" id="cutCap"></p>
+      <div class="slider"><label id="labDeli">Delivery</label><input type="range" id="sDeli" min="0" max="579" step="10" value="250"><div class="out" id="oDeli"></div></div>
+      <div class="slider"><label id="labRest">Restaurante</label><input type="range" id="sRest" min="0" max="804" step="10" value="400"><div class="out" id="oRest"></div></div>
+      <div class="slider"><label id="labMerc">Mercado</label><input type="range" id="sMerc" min="1200" max="2244" step="20" value="1900"><div class="out" id="oMerc"></div></div>
       <div id="cutResult" style="margin-top:14px"></div>
     </div>
     <div class="card"><h2>Teto de delivery — semanal e diário</h2>
@@ -109,7 +109,7 @@
       <div class="kpis" id="projKpis" style="margin-top:14px"></div>
       <div id="projChart"></div>
       <div class="legend"><span><i class="dot" style="background:var(--teal)"></i>Reserva acumulada</span><span><i class="dot" style="background:var(--coral)"></i>Gasto mensal</span></div>
-      <div class="note">Faculdade dos dois (~R$ 1.700/mês) termina em dez/2027 — a partir de 2028 essa folga vira sobra extra. A reserva parte de R$ 84.578.</div></div>
+      <div class="note" id="projNota"></div></div>
   </div>
 
   <!-- PATRIMÔNIO -->
@@ -125,7 +125,7 @@
       </div>
       <div class="card full"><h2>Composição do patrimônio</h2><div id="ptResumo"></div></div>
     </div>
-    <div class="note">Valores dos veículos (FIPE) e da Leve Sonho são estimativas editáveis — ajuste com os números reais. Dívida considerada: financiamento da faculdade até dez/2027 (~R$ 29.200 restantes).</div>
+    <div class="note">Valores dos veículos (FIPE) e da Leve Sonho são estimativas editáveis — ajuste com os números reais. <span id="ptNota"></span></div>
   </div>
 
   <!-- CUSTO DE VIDA -->
@@ -147,11 +147,11 @@
 
   <div style="text-align:center;margin-top:34px">
     <img src="img/logo.png" alt="" onerror="this.style.display='none'" style="max-height:56px;opacity:.9;border-radius:10px">
-    <div class="note" style="text-align:center">Meses completos (cartão + Bradesco + Itaú): Jan–Jul/2026. Valores por categoria = médias mensais. Saúde já considera o reembolso do Kaike e a psicóloga.</div>
+    <div class="note" style="text-align:center" id="rodape"></div>
   </div>
 </div>
 </div>
-<script src="js/config.js?v=13"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/config.js?v=14"></script>
+<script src="js/app.js?v=14"></script>
 </body>
 </html>

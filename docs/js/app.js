@@ -52,6 +52,19 @@ function p3totAtual(){
   Object.keys(src).forEach(function(q){ var s=0; Object.keys(src[q]).forEach(function(m){ s+=src[q][m]; }); t[q]=Math.round(s); });
   return t;
 }
+
+function comidaAtual(){
+  var f = (filtroMes==='Ano') ? (D.food||{}) : ((D.mes_sub&&D.mes_sub[filtroMes]&&D.mes_sub[filtroMes]['Alimentação'])||{});
+  return { merc:(f['Mercado']||0), rest:(f['Restaurante']||0), deli:(f['Delivery']||0),
+           outros:(f['Hortifruti']||0)+(f['Padaria']||0)+(f['Açougue']||0)+(f['Doces/Lanches']||0) };
+}
+function txtPeriodo(){ return filtroMes==='Ano' ? ('média mensal · '+(MESES[0]||'')+'–'+(MESES[MESES.length-1]||'')+'/2026') : ('mês de '+filtroMes+'/2026'); }
+function atualizarTextos(){
+  var sp=el('subPeriodo'); if(sp) sp.textContent='Extratos reais · '+(MESES.length?MESES[0]+'–'+MESES[MESES.length-1]+' 2026':'');
+  var rd=el('rodape'); if(rd) rd.textContent='Meses com dados: '+MESES.join(', ')+'/2026. Na visão "Ano" os valores são médias mensais; escolhendo um mês, são os valores daquele mês. Saúde já considera o reembolso do Kaike e a psicóloga.';
+  var rm=el('resMeta'); if(rm){ var meta=65000, pctm=D.kpi.reserva/meta*100;
+    rm.textContent='Meta de 9 meses: '+BRL(meta)+' — '+pctm.toFixed(0)+'% alcançado.'; }
+}
 function catAtual(){return filtroMes==="Ano"?D.macro:(D.mes_macro[filtroMes]||{});}
 function kpiAtual(){if(filtroMes==="Ano")return{rec:D.kpi.renda,des:D.kpi.gasto,sob:D.kpi.sobra,taxa:D.kpi.taxa};const m=D.mensal[filtroMes];return{rec:m.receita,des:m.despesa,sob:m.saldo,taxa:m.receita?m.saldo/m.receita*100:0};}
 
@@ -81,6 +94,7 @@ function renderVisao(){
    <div class="kpi wt"><div class="l">Taxa de poupança</div><div class="v serif ${k.taxa>=20?'pos':'neg'}">${k.taxa.toFixed(0)}%</div><div class="h">meta 20%</div></div>
    <div class="kpi wt"><div class="l">Reserva</div><div class="v serif pos">${BRL(D.kpi.reserva)}</div><div class="h">da aba Reservas</div></div>`;
   if(el("resVal"))el("resVal").textContent=BRL(D.kpi.reserva);
+  atualizarTextos();
   drawPodeGastar();
   drawSaldoContas();
   drawCombo();drawDonut(catAtual());drawGauge(k.taxa);
@@ -162,7 +176,11 @@ function renderPessoa(){
     pieSVG('p3pie',ents,k=>cor(k));
     el('p3bars').innerHTML=barsHTML(ents,k=>cor(k),temSub);
     if(temSub) [...el('p3bars').querySelectorAll('.row')].forEach(r=>r.onclick=()=>{p3Aberta=r.dataset.k;renderPessoa();});
-    el('p3title').textContent='Gastos de '+selP;
+    var Pt=p3totAtual(), somaT=0; Object.keys(Pt).forEach(function(k){somaT+=Pt[k];});
+  var pctFam = somaT>0 ? (Pt['Família']||0)/somaT*100 : 0;
+  var cal=el('p3Callout');
+  if(cal) cal.innerHTML='<b>'+pctFam.toFixed(0)+'% dos gastos são da família</b> ('+txtPeriodo()+'). O gasto de cada um consigo mesmo: Karol <b>'+BRL(Pt['Karol']||0)+'</b> e Vinícius <b>'+BRL(Pt['Vinícius']||0)+'</b>'+(pctFam>=85?' — ninguém está gastando demais consigo.':'.');
+  el('p3title').textContent='Gastos de '+selP;
     el('p3cap').textContent=(selP==='Família'?'Gastos compartilhados do casal (o que não é isolado de uma pessoa).':'Só o que é gasto isolado de '+selP+'.')+(temSub?' Clique numa categoria pra ver as subcategorias.':'');
   }else{
     const subs=Object.entries((p3subAtual()[selP]||{})[p3Aberta]||{});
@@ -176,7 +194,23 @@ function renderPessoa(){
 }
 
 // ---------- METAS & DELIVERY ----------
+function ajustarSlidersComida(){
+  var C=comidaAtual();
+  var pares=[['sDeli',C.deli,0.5],['sRest',C.rest,0.5],['sMerc',C.merc,0.85]];
+  pares.forEach(function(p){
+    var e=el(p[0]); if(!e) return;
+    var max=Math.max(Math.round(p[1]),10);
+    e.max=max; if(+e.value>max || e.dataset.init!=='1'){ e.value=Math.round(max*p[2]); e.dataset.init='1'; }
+  });
+  var ld=el('labDeli'), lr=el('labRest'), lm=el('labMerc');
+  if(ld) ld.textContent='Delivery (hoje '+BRL(C.deli)+')';
+  if(lr) lr.textContent='Restaurante (hoje '+BRL(C.rest)+')';
+  if(lm) lm.textContent='Mercado (hoje '+BRL(C.merc)+')';
+  var cc=el('cutCap');
+  if(cc) cc.innerHTML='Ajuste os tetos e veja quanto corta ('+txtPeriodo()+'). Comer fora (restaurante + delivery) custa hoje <b>'+BRL(C.rest+C.deli)+'</b>.';
+}
 function renderMetas(){
+  ajustarSlidersComida();
   const deli=+el("sDeli").value,rest=+el("sRest").value,merc=+el("sMerc").value;
   el("oDeli").textContent=BRL(deli);el("oRest").textContent=BRL(rest);el("oMerc").textContent=BRL(merc);
   const corte=(579-deli)+(804-rest)+(2244-merc);
@@ -195,6 +229,8 @@ function renderMetas(){
 // ---------- PROJEÇÃO ----------
 const MMESES=['Ago/26','Set/26','Out/26','Nov/26','Dez/26','Jan/27','Fev/27','Mar/27','Abr/27','Mai/27','Jun/27','Jul/27','Ago/27','Set/27','Out/27','Nov/27','Dez/27'];
 function renderProj(){
+  var pn=el('projNota');
+  if(pn) pn.innerHTML='Faculdade dos dois (~'+BRL((D.custoVida&&D.custoVida.fixoDet&&D.custoVida.fixoDet['Faculdade'])||1700)+'/mês) termina em dez/2027 — a partir de 2028 essa folga vira sobra extra. A reserva parte de <b>'+BRL(D.kpi.reserva)+'</b>.';
   const alu=+el("pAlu").value,cut=+el("pCut").value,move=+el("pMove").value;
   el("oAlu").textContent=BRL(alu);el("oCut").textContent=BRL(cut);el("oMove").textContent=move===0?'já':MMESES[move]||'—';
   const renda=D.kpi.renda,baseG=D.kpi.gasto;let reserva=D.kpi.reserva;const serie=[];
@@ -251,6 +287,9 @@ function corBanco_(nome){var n=(nome||'').toLowerCase();
   return '#159a80';}
 function bancos_(){ return (D.reservas&&D.reservas.length) ? D.reservas.map(function(r){return [r.nome,r.valor,corBanco_(r.nome)];}) : []; }
 function renderPatrimonio(){
+  var pt=el('ptNota');
+  if(pt){ var dv=0; (D.dividas||[]).forEach(function(d){dv+=d.restante;});
+    pt.textContent='Dívidas consideradas: '+BRL(dv)+' em aberto (aba Dívidas).'; }
   var onix=+el('ptOnix').value,cg=+el('ptCG').value,gs=+el('ptGS').value,ls=+el('ptLS').value;
   el('oPtOnix').textContent=BRL(onix);el('oPtCG').textContent=BRL(cg);el('oPtGS').textContent=BRL(gs);el('oPtLS').textContent=ls>0?BRL(ls):'a definir';
   var reservas=84578, veic=onix+cg+gs, bens=reservas+veic+ls, divida=29200, liquido=bens-divida;
