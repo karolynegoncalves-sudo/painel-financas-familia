@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças da Família — Karol & Vinícius</title>
-<link rel="stylesheet" href="css/style.css?v=11">
+<link rel="stylesheet" href="css/style.css?v=12">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -40,6 +40,8 @@
         <div class="legend"><span><i class="dot" style="background:var(--teal)"></i>Receita</span><span><i class="dot" style="background:var(--coral)"></i>Despesa</span><span><i class="dot" style="background:var(--amber)"></i>Sobra</span></div></div>
       <div class="card"><h2>Despesas por categoria</h2><p class="cap" id="donutCap"></p>
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div style="flex:0 0 160px"><div id="donut"></div></div><div style="flex:1;min-width:150px" id="donutLeg"></div></div></div>
+      <div class="card full"><h2>🍟 Já posso gastar? — mês atual</h2><p class="cap" id="pgCap">Quanto vocês já gastaram este mês, e quanto ainda cabe.</p>
+        <div id="podeGastar"></div></div>
       <div class="card full"><h2>💰 Saldo em cada conta</h2><p class="cap">Valores da aba <b>Reservas</b> da planilha — atualiza sozinho quando você edita lá.</p>
         <div id="saldoContas"></div></div>
       <div class="card"><h2>Taxa de poupança &amp; reserva</h2><p class="cap">Quanto da renda sobra pra investir</p>
@@ -124,13 +126,30 @@
     <div class="note">Valores dos veículos (FIPE) e da Leve Sonho são estimativas editáveis — ajuste com os números reais. Dívida considerada: financiamento da faculdade até dez/2027 (~R$ 29.200 restantes).</div>
   </div>
 
+  <!-- CUSTO DE VIDA -->
+  <div class="page" id="p-custo">
+    <div class="kpis" id="cvKpis"></div>
+    <div class="grid">
+      <div class="card"><h2>🔒 Custos fixos</h2><p class="cap">Contas que se repetem todo mês</p><div id="cvFixo"></div></div>
+      <div class="card"><h2>🔀 Custos variáveis</h2><p class="cap">Mudam conforme o mês</p><div id="cvVar"></div></div>
+      <div class="card full"><div id="cvResumo"></div></div>
+    </div>
+  </div>
+
+  <!-- DÍVIDAS -->
+  <div class="page" id="p-dividas">
+    <div class="kpis" id="dvKpis"></div>
+    <div id="dvLista"></div>
+    <div class="note">Para atualizar: na aba <b>Dívidas</b> da planilha, some 1 em "Parcelas pagas" a cada parcela quitada. A barra anda sozinha.</div>
+  </div>
+
   <div style="text-align:center;margin-top:34px">
     <img src="img/logo.png" alt="" onerror="this.style.display='none'" style="max-height:56px;opacity:.9;border-radius:10px">
     <div class="note" style="text-align:center">Meses completos (cartão + Bradesco + Itaú): Jan–Jul/2026. Valores por categoria = médias mensais. Saúde já considera o reembolso do Kaike e a psicóloga.</div>
   </div>
 </div>
 </div>
-<script src="js/config.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/config.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>

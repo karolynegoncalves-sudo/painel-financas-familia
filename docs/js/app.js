@@ -12,7 +12,7 @@ let MESES=[];
 let filtroMes="Ano",aberta=null;
 
 // tabs
-const TABS=[["visao","Visão geral"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["proj","Projeção 2027"],["patrim","Patrimônio"]];
+const TABS=[["visao","Visão geral"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["custo","Custo de vida"],["dividas","Dívidas"],["proj","Projeção 2027"],["patrim","Patrimônio"]];
 el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="${t[0]}">${t[1]}</button>`).join("");
 [...document.querySelectorAll('.tab')].forEach(b=>b.onclick=()=>{
   [...document.querySelectorAll('.tab')].forEach(x=>x.classList.toggle('on',x===b));
@@ -52,6 +52,7 @@ function renderVisao(){
    <div class="kpi wt"><div class="l">Taxa de poupança</div><div class="v serif ${k.taxa>=20?'pos':'neg'}">${k.taxa.toFixed(0)}%</div><div class="h">meta 20%</div></div>
    <div class="kpi wt"><div class="l">Reserva</div><div class="v serif pos">${BRL(D.kpi.reserva)}</div><div class="h">da aba Reservas</div></div>`;
   if(el("resVal"))el("resVal").textContent=BRL(D.kpi.reserva);
+  drawPodeGastar();
   drawSaldoContas();
   drawCombo();drawDonut(catAtual());drawGauge(k.taxa);
 }
@@ -237,7 +238,91 @@ function renderPatrimonio(){
     '<tr style="border-top:2px solid var(--line)"><td style="font-weight:600">Patrimonio liquido</td><td class="n" style="font-weight:600">'+BRL(liquido)+'</td></tr></table>';
 }
 ['ptOnix','ptCG','ptGS','ptLS'].forEach(function(id){el(id).addEventListener('input',renderPatrimonio);});
-function renderAll(){setupMes();renderVisao();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();}
+
+// ---------- POSSO GASTAR? (mes atual) ----------
+var TETO_ALIM = 2800;
+function drawPodeGastar(){
+  var box=el('podeGastar'); if(!box) return;
+  var MA=D.mesAtual;
+  if(!MA){ box.innerHTML='<div class="note">Atualize o backend do Apps Script para ver o mes atual.</div>'; return; }
+  var alim=(MA.macro&&MA.macro['Alimentação'])||0;
+  var rest=Math.max(TETO_ALIM-alim,0);
+  var porDia = MA.diasRestantes>0 ? rest/MA.diasRestantes : rest;
+  var pct=Math.min(alim/TETO_ALIM*100,100);
+  var esperado = TETO_ALIM*(MA.dia/MA.diasNoMes);
+  var status, cor, msg;
+  if(alim<=esperado*0.9){ status='Tranquilo'; cor='var(--teal)'; msg='Voces estao <b>abaixo</b> do ritmo do mes. Pode pegar o doce sem culpa.'; }
+  else if(alim<=esperado*1.1){ status='No ritmo'; cor='var(--amber)'; msg='Estao <b>no ritmo certo</b>. O doce cabe, mas fique de olho no resto da semana.'; }
+  else if(alim<TETO_ALIM){ status='Acelerado'; cor='var(--amber)'; msg='Estao gastando <b>mais rapido</b> que o previsto. Melhor segurar os extras.'; }
+  else { status='Estourou'; cor='var(--coral)'; msg='O teto do mes <b>ja foi ultrapassado</b>. Vale segurar ate virar o mes.'; }
+  var cap=el('pgCap'); if(cap) cap.textContent='Mes de '+MA.label+' - dia '+MA.dia+' de '+MA.diasNoMes+' - faltam '+MA.diasRestantes+' dias';
+  var deli=(MA.sub&&(MA.sub['Delivery']||0))||0, restr=(MA.sub&&(MA.sub['Restaurante']||0))||0, merc=(MA.sub&&(MA.sub['Mercado']||0))||0;
+  box.innerHTML=
+   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">'+
+    '<div style="background:'+cor+';color:#fff;border-radius:10px;padding:12px 14px"><div style="font-size:11.5px;opacity:.9">SITUACAO</div><div style="font-size:19px;margin-top:3px">'+status+'</div></div>'+
+    '<div style="background:var(--surface-2);border-radius:10px;padding:12px 14px"><div style="font-size:11.5px;color:var(--ink-2)">Ja gastou em comida</div><div class="serif" style="font-size:21px">'+BRL(alim)+'</div></div>'+
+    '<div style="background:var(--surface-2);border-radius:10px;padding:12px 14px"><div style="font-size:11.5px;color:var(--ink-2)">Ainda cabe no mes</div><div class="serif" style="font-size:21px;color:'+(rest>0?'var(--teal)':'var(--coral)')+'">'+BRL(rest)+'</div></div>'+
+    '<div style="background:var(--surface-2);border-radius:10px;padding:12px 14px"><div style="font-size:11.5px;color:var(--ink-2)">Por dia ate o fim</div><div class="serif" style="font-size:21px">'+BRL(porDia)+'</div></div>'+
+   '</div>'+
+   '<div style="height:22px;border-radius:7px;background:var(--surface-2);overflow:hidden;position:relative">'+
+     '<div style="width:'+pct+'%;height:100%;background:'+cor+'"></div>'+
+     '<div style="position:absolute;left:'+Math.min(esperado/TETO_ALIM*100,100)+'%;top:0;bottom:0;width:2px;background:var(--ink)"></div>'+
+   '</div>'+
+   '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-2);margin-top:6px"><span>'+BRL(alim)+' de '+BRL(TETO_ALIM)+' ('+pct.toFixed(0)+'%)</span><span>marca preta = ritmo ideal pra hoje</span></div>'+
+   '<div class="callout" style="background:var(--surface-2)">'+msg+'<br><span style="font-size:12px;color:var(--ink-2)">No mes: Mercado '+BRL(merc)+' - Restaurante '+BRL(restr)+' - Delivery '+BRL(deli)+' - Gasto total do mes '+BRL(MA.total)+'</span></div>';
+}
+
+// ---------- CUSTO DE VIDA ----------
+function renderCusto(){
+  var CV=D.custoVida;
+  if(!CV){ el('cvKpis').innerHTML='<div class="note">Atualize o backend do Apps Script para ver o custo de vida.</div>'; return; }
+  el('cvKpis').innerHTML=
+   '<div class="kpi wt"><div class="l">Custo fixo</div><div class="v serif">'+BRL(CV.fixo)+'</div><div class="h">todo mes</div></div>'+
+   '<div class="kpi wt"><div class="l">Custo variavel</div><div class="v serif">'+BRL(CV.variavel)+'</div><div class="h">media/mes</div></div>'+
+   '<div class="kpi des"><div class="l">Parcelas de dividas</div><div class="v serif">'+BRL(CV.parcelas)+'</div><div class="h">enquanto durarem</div></div>'+
+   '<div class="kpi sal"><div class="l">Custo de vida previsto</div><div class="v serif">'+BRL(CV.total)+'</div><div class="h">por mes</div></div>';
+  var fd=CV.fixoDet||{}, vd=CV.varDet||{};
+  el('cvFixo').innerHTML=barsHTML(Object.keys(fd).map(function(k){return [k,fd[k]];}),function(){return '#5f8c7d';},false);
+  el('cvVar').innerHTML=barsHTML(Object.keys(vd).map(function(k){return [k,vd[k]];}),function(){return '#e2593f';},false);
+  var renda=D.kpi.renda, sobra=renda-CV.total;
+  el('cvResumo').innerHTML='<h2>Cabe no orcamento?</h2>'+
+   '<div style="height:24px;border-radius:7px;background:var(--surface-2);overflow:hidden;display:flex;margin:10px 0 8px">'+
+   '<div style="width:'+(CV.fixo/renda*100)+'%;background:#5f8c7d"></div>'+
+   '<div style="width:'+(CV.variavel/renda*100)+'%;background:#e2593f"></div>'+
+   '<div style="width:'+(CV.parcelas/renda*100)+'%;background:#8a6f9e"></div></div>'+
+   '<div class="legend"><span><i class="dot" style="background:#5f8c7d"></i>Fixo '+BRL(CV.fixo)+'</span><span><i class="dot" style="background:#e2593f"></i>Variavel '+BRL(CV.variavel)+'</span><span><i class="dot" style="background:#8a6f9e"></i>Dividas '+BRL(CV.parcelas)+'</span></div>'+
+   '<div class="callout '+(sobra>0?'ok':'')+'">Renda <b>'+BRL(renda)+'</b> menos custo de vida <b>'+BRL(CV.total)+'</b> = <b>'+BRL(sobra)+'</b> por mes '+(sobra>0?'pra investir.':'- atencao, esta no vermelho.')+'</div>';
+}
+
+// ---------- DIVIDAS ----------
+function renderDividas(){
+  var L=D.dividas||[];
+  if(!L.length){ el('dvKpis').innerHTML='<div class="note">Rode <b>criarAbaDividas()</b> no Apps Script para criar a aba Dividas.</div>'; el('dvLista').innerHTML=''; return; }
+  var tot=0,pago=0,rest=0,parc=0;
+  L.forEach(function(d){ tot+=d.total; pago+=d.pago; rest+=d.restante; if(d.faltam>0) parc+=d.parcela; });
+  var pct= tot>0 ? pago/tot*100 : 0;
+  el('dvKpis').innerHTML=
+   '<div class="kpi des"><div class="l">Divida total</div><div class="v serif">'+BRL(tot)+'</div><div class="h">valor contratado</div></div>'+
+   '<div class="kpi rec"><div class="l">Ja pago</div><div class="v serif">'+BRL(pago)+'</div><div class="h">'+pct.toFixed(0)+'% quitado</div></div>'+
+   '<div class="kpi wt"><div class="l">Falta pagar</div><div class="v serif neg">'+BRL(rest)+'</div><div class="h">saldo devedor</div></div>'+
+   '<div class="kpi sal"><div class="l">Peso mensal</div><div class="v serif">'+BRL(parc)+'</div><div class="h">parcelas/mes</div></div>';
+  el('dvLista').innerHTML=L.map(function(d){
+    var cor = d.pct>=100?'var(--teal)':(d.pct>=50?'#7d9b6a':'var(--amber)');
+    return '<div class="card"><h2>'+d.desc+' - '+d.quem+'</h2>'+
+    '<p class="cap">'+d.nparc+'x de '+BRL(d.parcela)+(d.entrada?' + entrada de '+BRL(d.entrada):'')+' - faltam <b>'+d.faltam+'</b> parcelas</p>'+
+    '<div style="height:26px;border-radius:8px;background:var(--surface-2);overflow:hidden;position:relative">'+
+      '<div style="width:'+d.pct+'%;height:100%;background:'+cor+'"></div>'+
+      '<div style="position:absolute;left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:var(--ink)">'+d.pct.toFixed(1)+'%</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px">'+
+      '<div style="background:var(--surface-2);border-radius:9px;padding:9px 11px"><div style="font-size:11px;color:var(--ink-2)">Total</div><div class="serif" style="font-size:17px">'+BRL(d.total)+'</div></div>'+
+      '<div style="background:var(--surface-2);border-radius:9px;padding:9px 11px"><div style="font-size:11px;color:var(--ink-2)">Ja pago</div><div class="serif pos" style="font-size:17px">'+BRL(d.pago)+'</div></div>'+
+      '<div style="background:var(--surface-2);border-radius:9px;padding:9px 11px"><div style="font-size:11px;color:var(--ink-2)">Falta</div><div class="serif neg" style="font-size:17px">'+BRL(d.restante)+'</div></div>'+
+      '<div style="background:var(--surface-2);border-radius:9px;padding:9px 11px"><div style="font-size:11px;color:var(--ink-2)">Parcelas pagas</div><div class="serif" style="font-size:17px">'+d.pagas+'/'+d.nparc+'</div></div>'+
+    '</div></div>';
+  }).join('');
+}
+function renderAll(){setupMes();renderVisao();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
