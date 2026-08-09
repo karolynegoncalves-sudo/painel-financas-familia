@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças da Família — Karol & Vinícius</title>
-<link rel="stylesheet" href="css/style.css?v=15">
+<link rel="stylesheet" href="css/style.css?v=16">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -103,9 +103,10 @@
   <div class="page" id="p-proj">
     <div class="card"><h2>Projeção mês a mês</h2>
       <p class="cap" id="projCap">Custo fixo atual + média dos variáveis, com as dívidas caindo conforme terminam.</p>
-      <div class="slider"><label>Aluguel (all-in)</label><input type="range" id="pAlu" min="0" max="4000" step="100" value="2700"><div class="out" id="oAlu"></div></div>
-      <div class="slider"><label>Corte nos variáveis</label><input type="range" id="pCut" min="0" max="2000" step="50" value="0"><div class="out" id="oCut"></div></div>
-      <div class="slider"><label>Mudar a partir de</label><input type="range" id="pMove" min="0" max="17" step="1" value="1"><div class="out" id="oMove"></div></div>
+      <div class="slider"><label id="labAlu">Aluguel do lugar novo</label><input type="range" id="pAlu" min="0" max="4000" step="100" value="2700"><div class="out" id="oAlu"></div></div>
+      <div class="slider"><label id="labCut">Corte nos variáveis</label><input type="range" id="pCut" min="0" max="2000" step="50" value="0"><div class="out" id="oCut"></div></div>
+      <div class="slider"><label id="labMove">Mudar a partir de</label><input type="range" id="pMove" min="0" max="17" step="1" value="1"><div class="out" id="oMove"></div></div>
+      <div class="note" id="projAviso" style="margin:10px 0"></div>
       <div class="kpis" id="projKpis" style="margin-top:14px"></div>
       <div id="projChart"></div>
       <div class="legend"><span><i class="dot" style="background:var(--teal)"></i>Reserva acumulada</span><span><i class="dot" style="background:var(--coral)"></i>Custo mensal</span></div>
@@ -113,7 +114,7 @@
     </div>
     <div class="card"><h2>Quando cada dívida termina</h2><div id="projAgenda"></div></div>
     <div class="card"><h2>Tabela mês a mês</h2>
-      <div style="overflow-x:auto"><table><thead><tr><th>Mês</th><th class="n">Fixo</th><th class="n">Variável</th><th class="n">Dívidas</th><th class="n">Custo total</th><th class="n">Sobra</th><th class="n">Reserva</th></tr></thead><tbody id="projTab"></tbody></table></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Mês</th><th class="n">Fixo</th><th class="n">Aluguel</th><th class="n">Variável</th><th class="n">Dívidas</th><th class="n">Custo total</th><th class="n">Sobra</th><th class="n">Reserva</th></tr></thead><tbody id="projTab"></tbody></table></div>
     </div>
   </div>
 
@@ -156,7 +157,7 @@
   </div>
 </div>
 </div>
-<script src="js/config.js?v=15"></script>
-<script src="js/app.js?v=15"></script>
+<script src="js/config.js?v=16"></script>
+<script src="js/app.js?v=16"></script>
 </body>
 </html>

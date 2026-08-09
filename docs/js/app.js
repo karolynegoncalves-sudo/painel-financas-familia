@@ -259,21 +259,33 @@ function renderProj(){
 
   var hoje=new Date();
   var serie=mesesAte_(hoje.getFullYear(), hoje.getMonth()+1, 2027, 12);
+  var eMove=el('pMove');
+  eMove.max=serie.length;                      // ultimo valor = nao mudar
+  if(move>serie.length){ move=serie.length; eMove.value=move; }
+  var mudou = move<serie.length;
   el('oAlu').textContent=BRL(alu);
   el('oCut').textContent=BRL(cut);
-  el('oMove').textContent= move===0 ? 'já' : (serie[move]?serie[move].label:'—');
+  el('oMove').textContent = !mudou ? 'não mudar' : (move===0 ? 'este mês' : serie[move].label);
+  var lm=el('labMove');
+  if(lm) lm.textContent = !mudou ? 'Mudança de casa: não simular' : ('Aluguel de '+BRL(alu)+' começa em '+(move===0?serie[0].label:serie[move].label));
+  var la=el('labAlu');
+  if(la) la.textContent='Aluguel do lugar novo (hoje vocês não pagam aluguel pela conta pessoal)';
+  var av=el('projAviso');
+  if(av) av.innerHTML = mudou
+    ? '🏠 <b>O degrau de '+BRL(alu)+' na coluna Fixo a partir de '+(move===0?serie[0].label:serie[move].label)+' é o aluguel da casa nova.</b> Hoje ele não aparece nos extratos porque vocês moram no endereço da empresa. Puxe o slider até o fim pra ver o cenário sem mudança.'
+    : '🏠 <b>Cenário sem mudança de casa</b> — sem aluguel na conta. Mova o slider pra simular a saída do endereço da empresa.';
 
   var reserva=D.kpi.reserva, renda=D.kpi.renda, linhas=[];
   serie.forEach(function(pt,i){
     var fixo=CV.fixo;
     // faculdade sai depois do fim
     if(pt.ano>fimFacAno || (pt.ano===fimFacAno && pt.mes>fimFacMes)) fixo-=facMes;
-    if(i>=move) fixo+=alu;
+    var aluguel = (mudou && i>=move) ? alu : 0;
     var variavel=Math.max(CV.variavel-cut,0);
     var dv=0; divs.forEach(function(d){ dv+=parcelaNoMes_(d,pt.ano,pt.mes); });
-    var total=fixo+variavel+dv, sobra=renda-total;
+    var total=fixo+aluguel+variavel+dv, sobra=renda-total;
     reserva+=sobra;
-    linhas.push({label:pt.label,fixo:fixo,variavel:variavel,dividas:dv,total:total,sobra:sobra,reserva:reserva});
+    linhas.push({label:pt.label,fixo:fixo,aluguel:aluguel,variavel:variavel,dividas:dv,total:total,sobra:sobra,reserva:reserva,primeiroAlu:(mudou && i===move)});
   });
 
   var ult=linhas[linhas.length-1];
@@ -312,13 +324,13 @@ function renderProj(){
 
   // tabela
   el('projTab').innerHTML=linhas.map(function(l){
-    return '<tr><td>'+l.label+'</td><td class="n">'+BRL(l.fixo)+'</td><td class="n">'+BRL(l.variavel)+'</td><td class="n">'+(l.dividas?BRL(l.dividas):'—')+'</td><td class="n">'+BRL(l.total)+'</td><td class="n '+(l.sobra>=0?'pos':'neg')+'">'+BRL(l.sobra)+'</td><td class="n">'+BRL(l.reserva)+'</td></tr>';
+    return '<tr'+(l.primeiroAlu?' style="background:#fff7e6"':'')+'><td>'+l.label+(l.primeiroAlu?' <b title="mês da mudança">🏠</b>':'')+'</td><td class="n">'+BRL(l.fixo)+'</td><td class="n">'+(l.aluguel?BRL(l.aluguel):'—')+'</td><td class="n">'+BRL(l.variavel)+'</td><td class="n">'+(l.dividas?BRL(l.dividas):'—')+'</td><td class="n">'+BRL(l.total)+'</td><td class="n '+(l.sobra>=0?'pos':'neg')+'">'+BRL(l.sobra)+'</td><td class="n">'+BRL(l.reserva)+'</td></tr>';
   }).join('');
 
   var pn=el('projNota');
   if(pn) pn.innerHTML='Projeção de '+linhas[0].label+' até '+ult.label+', partindo da reserva de <b>'+BRL(D.kpi.reserva)+'</b> e renda de <b>'+BRL(renda)+'</b>. O custo cai conforme as dívidas terminam.';
   var pc=el('projCap');
-  if(pc) pc.innerHTML='Custo fixo (<b>'+BRL(CV.fixo)+'</b>) + média dos variáveis (<b>'+BRL(CV.variavel)+'</b>) + parcelas, mês a mês até dez/2027.';
+  if(pc) pc.innerHTML='Custo fixo de hoje (<b>'+BRL(CV.fixo)+'</b>, <u>sem aluguel</u>) + média dos variáveis (<b>'+BRL(CV.variavel)+'</b>) + parcelas das dívidas, mês a mês até dez/2027. O aluguel entra só quando você simular a mudança.';
 }
 ['pAlu','pCut','pMove'].forEach(function(id){el(id).addEventListener('input',renderProj);});
 
