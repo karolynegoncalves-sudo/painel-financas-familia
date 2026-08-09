@@ -20,9 +20,38 @@ el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="$
 });
 
 // filtro mês
-function setupMes(){MESES=Object.keys(D.mensal);el("fMes").innerHTML=['Ano',...MESES].map(m=>`<button class="chip${m==='Ano'?' on':''}" data-m="${m}">${m==='Ano'?'Ano (média)':m}</button>`).join("");
+function chipsMes_(id){
+  var e=el(id); if(!e) return;
+  e.innerHTML=['Ano'].concat(MESES).map(function(m){
+    return '<button class="chip'+(m===filtroMes?' on':'')+'" data-m="'+m+'">'+(m==='Ano'?'Ano (média)':m)+'</button>';
+  }).join('');
+  [].forEach.call(e.querySelectorAll('.chip'),function(b){
+    b.onclick=function(){ filtroMes=b.dataset.m; aberta=null; p3Aberta=null; setupMes(); renderVisao(); renderCat(); renderPessoa(); };
+  });
+}
+function setupMes(){MESES=Object.keys(D.mensal);
+  chipsMes_('fMesCat'); chipsMes_('fMesP3');el("fMes").innerHTML=['Ano',...MESES].map(m=>`<button class="chip${m==='Ano'?' on':''}" data-m="${m}">${m==='Ano'?'Ano (média)':m}</button>`).join("");
 [...el("fMes").querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{filtroMes=b.dataset.m;[...el("fMes").querySelectorAll('.chip')].forEach(x=>x.classList.toggle('on',x===b));renderVisao();});}
 
+
+function subAtual(macroNome){
+  if(filtroMes==='Ano') return (D.sub&&D.sub[macroNome])||{};
+  return (D.mes_sub&&D.mes_sub[filtroMes]&&D.mes_sub[filtroMes][macroNome])||{};
+}
+function p3Atual(){
+  if(filtroMes==='Ano') return D.p3||{};
+  return (D.mes_p3&&D.mes_p3[filtroMes])||{};
+}
+function p3subAtual(){
+  if(filtroMes==='Ano') return D.p3sub||{};
+  return (D.mes_p3sub&&D.mes_p3sub[filtroMes])||{};
+}
+function p3totAtual(){
+  if(filtroMes==='Ano') return D.p3tot||{};
+  var src=p3Atual(), t={};
+  Object.keys(src).forEach(function(q){ var s=0; Object.keys(src[q]).forEach(function(m){ s+=src[q][m]; }); t[q]=Math.round(s); });
+  return t;
+}
 function catAtual(){return filtroMes==="Ano"?D.macro:(D.mes_macro[filtroMes]||{});}
 function kpiAtual(){if(filtroMes==="Ano")return{rec:D.kpi.renda,des:D.kpi.gasto,sob:D.kpi.sobra,taxa:D.kpi.taxa};const m=D.mensal[filtroMes];return{rec:m.receita,des:m.despesa,sob:m.saldo,taxa:m.receita?m.saldo/m.receita*100:0};}
 
@@ -98,7 +127,7 @@ function drawGauge(t){const p=Math.max(0,Math.min(t,100))/100,a0=-Math.PI/2,a1=a
 let catSel=null;
 function renderCat(){
   if(!catSel){
-    const ents=Object.entries(D.macro);
+    const ents=Object.entries(catAtual());
     pieSVG('catPie',ents,k=>cor(k));
     el('catbars').innerHTML=barsHTML(ents,k=>cor(k),true);
     [...el('catbars').querySelectorAll('.row')].forEach(r=>r.onclick=()=>{catSel=r.dataset.k;renderCat();});
@@ -106,7 +135,7 @@ function renderCat(){
     el('catTitle').textContent='Despesas por categoria';
     el('catCap').textContent='Clique numa categoria (na lista) pra ver as subcategorias no gráfico.';
   }else{
-    const ents=Object.entries(D.sub[catSel]||{});
+    const ents=Object.entries(subAtual(catSel));
     pieSVG('catPie',ents,(k,i)=>SUBPAL[i%SUBPAL.length]);
     el('catbars').innerHTML=barsHTML(ents,(k,i)=>SUBPAL[i%SUBPAL.length],false);
     el('catBack').innerHTML=`<button class="chip" id="catBackBtn" style="margin-top:12px">← voltar às categorias</button>`;
@@ -121,22 +150,22 @@ function renderCat(){
 // ---------- PESSOAS ----------
 let selP='Família', p3Aberta=null;
 function renderPessoa(){
-  const P=D.p3tot;
+  const P=p3totAtual();
   el("p3kpis").innerHTML=`<div class="kpi rec"><div class="l">Família</div><div class="v serif">${BRL(P['Família']||0)}</div><div class="h">compartilhado/mês</div></div>
    <div class="kpi wt"><div class="l">Karol (pessoal)</div><div class="v serif">${BRL(P['Karol']||0)}</div><div class="h">só dela</div></div>
    <div class="kpi wt"><div class="l">Vinícius (pessoal)</div><div class="v serif">${BRL(P['Vinícius']||0)}</div><div class="h">só dele</div></div>`;
   el('p3sel').innerHTML=['Família','Karol','Vinícius'].map(p=>`<button class="chip${p===selP?' on':''}" data-p="${p}">${p} · ${BRL(P[p]||0)}</button>`).join("");
   [...el('p3sel').querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{selP=b.dataset.p;p3Aberta=null;renderPessoa();});
-  const temSub = !!(D.p3sub && D.p3sub[selP]);
+  const temSub = !!(p3subAtual() && p3subAtual()[selP]);
   if(!p3Aberta){
-    const ents=Object.entries(D.p3[selP]||{});
+    const ents=Object.entries(p3Atual()[selP]||{});
     pieSVG('p3pie',ents,k=>cor(k));
     el('p3bars').innerHTML=barsHTML(ents,k=>cor(k),temSub);
     if(temSub) [...el('p3bars').querySelectorAll('.row')].forEach(r=>r.onclick=()=>{p3Aberta=r.dataset.k;renderPessoa();});
     el('p3title').textContent='Gastos de '+selP;
     el('p3cap').textContent=(selP==='Família'?'Gastos compartilhados do casal (o que não é isolado de uma pessoa).':'Só o que é gasto isolado de '+selP+'.')+(temSub?' Clique numa categoria pra ver as subcategorias.':'');
   }else{
-    const subs=Object.entries((D.p3sub[selP]||{})[p3Aberta]||{});
+    const subs=Object.entries((p3subAtual()[selP]||{})[p3Aberta]||{});
     pieSVG('p3pie',subs,(k,i)=>SUBPAL[i%SUBPAL.length]);
     el('p3bars').innerHTML=barsHTML(subs,(k,i)=>SUBPAL[i%SUBPAL.length],false)+
       `<button class="chip" id="p3BackBtn" style="margin-top:12px">← voltar às categorias</button>`;
