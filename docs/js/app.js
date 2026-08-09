@@ -227,35 +227,100 @@ function renderMetas(){
 ['sDeli','sRest','sMerc'].forEach(id=>el(id).addEventListener('input',renderMetas));
 
 // ---------- PROJEÇÃO ----------
-const MMESES=['Ago/26','Set/26','Out/26','Nov/26','Dez/26','Jan/27','Fev/27','Mar/27','Abr/27','Mai/27','Jun/27','Jul/27','Ago/27','Set/27','Out/27','Nov/27','Dez/27'];
-function renderProj(){
-  var pn=el('projNota');
-  if(pn) pn.innerHTML='Faculdade dos dois (~'+BRL((D.custoVida&&D.custoVida.fixoDet&&D.custoVida.fixoDet['Faculdade'])||1700)+'/mês) termina em dez/2027 — a partir de 2028 essa folga vira sobra extra. A reserva parte de <b>'+BRL(D.kpi.reserva)+'</b>.';
-  const alu=+el("pAlu").value,cut=+el("pCut").value,move=+el("pMove").value;
-  el("oAlu").textContent=BRL(alu);el("oCut").textContent=BRL(cut);el("oMove").textContent=move===0?'já':MMESES[move]||'—';
-  const renda=D.kpi.renda,baseG=D.kpi.gasto;let reserva=D.kpi.reserva;const serie=[];
-  for(let i=0;i<MMESES.length;i++){
-    const g=baseG+(i>=move?alu:0)-cut;const sob=renda-g;reserva+=sob;
-    serie.push({m:MMESES[i],gasto:g,sobra:sob,reserva});
+var MESNOME=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function mesesAte_(iniAno,iniMes,fimAno,fimMes){
+  var out=[], a=iniAno, m=iniMes;
+  while(a<fimAno || (a===fimAno && m<=fimMes)){
+    out.push({ano:a,mes:m,label:MESNOME[m-1]+'/'+String(a).slice(2)});
+    m++; if(m>12){m=1;a++;}
   }
-  const fim=serie[serie.length-1],sobFinal=renda-(baseG+alu-cut);
-  el("projKpis").innerHTML=`<div class="kpi wt"><div class="l">Sobra/mês (já mudado)</div><div class="v serif ${sobFinal>=0?'pos':'neg'}">${BRL(sobFinal)}</div><div class="h">renda − gasto − aluguel + corte</div></div>
-   <div class="kpi rec"><div class="l">Reserva em dez/2027</div><div class="v serif">${BRL(fim.reserva)}</div><div class="h">de R$ 84.578 hoje</div></div>
-   <div class="kpi sal"><div class="l">Vão investir até lá</div><div class="v serif">${BRL(fim.reserva-D.kpi.reserva)}</div><div class="h">em ${MMESES.length} meses</div></div>`;
-  // chart: reserva (área teal) + gasto (linha coral)
-  const W=660,H=210,pad=34,n=serie.length;
-  const rmax=Math.max(...serie.map(s=>s.reserva)),gmax=Math.max(...serie.map(s=>s.gasto))*1.15;
-  const x=i=>pad+i*(W-pad*2)/(n-1),yr=v=>H-pad-(v/rmax)*(H-pad*2),yg=v=>H-pad-(v/gmax)*(H-pad*2);
-  let s=`<svg viewBox="0 0 ${W} ${H}">`;
-  const rpts=serie.map((d,i)=>[x(i),yr(d.reserva)]);
-  s+=`<polygon points="${pad},${H-pad} ${rpts.map(p=>p.join(',')).join(' ')} ${W-pad},${H-pad}" fill="var(--teal-soft)"/>`;
-  s+=`<polyline points="${rpts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--teal)" stroke-width="2.5"/>`;
-  const gpts=serie.map((d,i)=>[x(i),yg(d.gasto)]);
-  s+=`<polyline points="${gpts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--coral)" stroke-width="2" stroke-dasharray="4 3"/>`;
-  serie.forEach((d,i)=>{if(i%4===0||i===n-1)s+=`<text x="${x(i)}" y="${H-pad+13}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">${d.m}</text>`;});
-  el("projChart").innerHTML=s+`</svg>`;
+  return out;
 }
-['pAlu','pCut','pMove'].forEach(id=>el(id).addEventListener('input',renderProj));
+function parseInicio_(txt){
+  var m=String(txt||'').match(/(\d{1,2})\s*[\/\-]\s*(\d{4})/);
+  if(m) return {mes:parseInt(m[1],10), ano:parseInt(m[2],10)};
+  return {mes:8, ano:2026};
+}
+// parcela devida de uma divida num dado ano/mes
+function parcelaNoMes_(d, ano, mes){
+  var ini=parseInicio_(d.inicio);
+  var idx=(ano-ini.ano)*12+(mes-ini.mes);          // 0 = primeira parcela
+  if(idx<0 || idx>=d.nparc) return 0;
+  return d.parcela;
+}
+function renderProj(){
+  var CV=D.custoVida;
+  if(!CV){ el('projKpis').innerHTML='<div class="note">Atualize o backend do Apps Script.</div>'; return; }
+  var alu=+el('pAlu').value, cut=+el('pCut').value, move=+el('pMove').value;
+  var divs=D.dividas||[];
+  var fimFac=(D.agenda&&D.agenda.fimFaculdade)||'2027-12';
+  var facMes=(D.agenda&&D.agenda.faculdadeMes)||0;
+  var fimFacAno=parseInt(fimFac.slice(0,4),10), fimFacMes=parseInt(fimFac.slice(5,7),10);
+
+  var hoje=new Date();
+  var serie=mesesAte_(hoje.getFullYear(), hoje.getMonth()+1, 2027, 12);
+  el('oAlu').textContent=BRL(alu);
+  el('oCut').textContent=BRL(cut);
+  el('oMove').textContent= move===0 ? 'já' : (serie[move]?serie[move].label:'—');
+
+  var reserva=D.kpi.reserva, renda=D.kpi.renda, linhas=[];
+  serie.forEach(function(pt,i){
+    var fixo=CV.fixo;
+    // faculdade sai depois do fim
+    if(pt.ano>fimFacAno || (pt.ano===fimFacAno && pt.mes>fimFacMes)) fixo-=facMes;
+    if(i>=move) fixo+=alu;
+    var variavel=Math.max(CV.variavel-cut,0);
+    var dv=0; divs.forEach(function(d){ dv+=parcelaNoMes_(d,pt.ano,pt.mes); });
+    var total=fixo+variavel+dv, sobra=renda-total;
+    reserva+=sobra;
+    linhas.push({label:pt.label,fixo:fixo,variavel:variavel,dividas:dv,total:total,sobra:sobra,reserva:reserva});
+  });
+
+  var ult=linhas[linhas.length-1];
+  var semDiv=linhas.filter(function(l){return l.dividas===0;});
+  var sobraLimpa= semDiv.length ? semDiv[semDiv.length-1].sobra : ult.sobra;
+  el('projKpis').innerHTML=
+   '<div class="kpi wt"><div class="l">Sobra hoje</div><div class="v serif '+(linhas[0].sobra>=0?'pos':'neg')+'">'+BRL(linhas[0].sobra)+'</div><div class="h">'+linhas[0].label+'</div></div>'+
+   '<div class="kpi wt"><div class="l">Sobra sem dívidas</div><div class="v serif pos">'+BRL(sobraLimpa)+'</div><div class="h">quando quitarem</div></div>'+
+   '<div class="kpi rec"><div class="l">Reserva em dez/2027</div><div class="v serif">'+BRL(ult.reserva)+'</div><div class="h">de '+BRL(D.kpi.reserva)+' hoje</div></div>'+
+   '<div class="kpi sal"><div class="l">Vão guardar</div><div class="v serif">'+BRL(ult.reserva-D.kpi.reserva)+'</div><div class="h">em '+linhas.length+' meses</div></div>';
+
+  // grafico
+  var W=680,H=220,pad=34,n=linhas.length;
+  var rmax=Math.max.apply(null,linhas.map(function(l){return l.reserva;}).concat([1]));
+  var gmax=Math.max.apply(null,linhas.map(function(l){return l.total;}))*1.2;
+  var x=function(i){return pad+i*(W-pad*2)/Math.max(n-1,1);};
+  var yr=function(v){return H-pad-(v/rmax)*(H-pad*2);};
+  var yg=function(v){return H-pad-(v/gmax)*(H-pad*2);};
+  var rp=linhas.map(function(l,i){return [x(i),yr(l.reserva)];});
+  var gp=linhas.map(function(l,i){return [x(i),yg(l.total)];});
+  var sv='<svg viewBox="0 0 '+W+' '+H+'">';
+  sv+='<polygon points="'+pad+','+(H-pad)+' '+rp.map(function(p){return p.join(',');}).join(' ')+' '+(W-pad)+','+(H-pad)+'" fill="var(--teal-soft)"/>';
+  sv+='<polyline points="'+rp.map(function(p){return p.join(',');}).join(' ')+'" fill="none" stroke="var(--teal)" stroke-width="2.5"/>';
+  sv+='<polyline points="'+gp.map(function(p){return p.join(',');}).join(' ')+'" fill="none" stroke="var(--coral)" stroke-width="2" stroke-dasharray="4 3"/>';
+  linhas.forEach(function(l,i){ if(i%3===0||i===n-1) sv+='<text x="'+x(i)+'" y="'+(H-pad+13)+'" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">'+l.label+'</text>'; });
+  el('projChart').innerHTML=sv+'</svg>';
+
+  // agenda das dividas
+  var ag=divs.map(function(d){
+    var ini=parseInicio_(d.inicio);
+    var fm=ini.mes+d.nparc-1, fa=ini.ano+Math.floor((fm-1)/12); fm=((fm-1)%12)+1;
+    return '<div class="row"><div class="nm" style="width:230px">'+d.desc+' — '+d.quem+'</div><div class="bar"><i style="width:'+d.pct+'%;background:var(--amber)"></i></div><div class="vl num" style="width:170px">'+BRL(d.parcela)+' até '+MESNOME[fm-1]+'/'+String(fa).slice(2)+'</div></div>';
+  }).join('');
+  ag+='<div class="row"><div class="nm" style="width:230px">Faculdade (Karol + Vinícius)</div><div class="bar" style="background:none"></div><div class="vl num" style="width:170px">'+BRL(facMes)+' até '+MESNOME[fimFacMes-1]+'/'+String(fimFacAno).slice(2)+'</div></div>';
+  el('projAgenda').innerHTML=ag;
+
+  // tabela
+  el('projTab').innerHTML=linhas.map(function(l){
+    return '<tr><td>'+l.label+'</td><td class="n">'+BRL(l.fixo)+'</td><td class="n">'+BRL(l.variavel)+'</td><td class="n">'+(l.dividas?BRL(l.dividas):'—')+'</td><td class="n">'+BRL(l.total)+'</td><td class="n '+(l.sobra>=0?'pos':'neg')+'">'+BRL(l.sobra)+'</td><td class="n">'+BRL(l.reserva)+'</td></tr>';
+  }).join('');
+
+  var pn=el('projNota');
+  if(pn) pn.innerHTML='Projeção de '+linhas[0].label+' até '+ult.label+', partindo da reserva de <b>'+BRL(D.kpi.reserva)+'</b> e renda de <b>'+BRL(renda)+'</b>. O custo cai conforme as dívidas terminam.';
+  var pc=el('projCap');
+  if(pc) pc.innerHTML='Custo fixo (<b>'+BRL(CV.fixo)+'</b>) + média dos variáveis (<b>'+BRL(CV.variavel)+'</b>) + parcelas, mês a mês até dez/2027.';
+}
+['pAlu','pCut','pMove'].forEach(function(id){el(id).addEventListener('input',renderProj);});
 
 
 let ipModo='juntar';
