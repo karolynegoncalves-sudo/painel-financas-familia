@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças da Família — Karol & Vinícius</title>
-<link rel="stylesheet" href="css/style.css?v=16">
+<link rel="stylesheet" href="css/style.css?v=17">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -77,6 +77,12 @@
 
   <!-- METAS & DELIVERY -->
   <div class="page" id="p-metas">
+    <div class="card"><h2>Ritmo do mês</h2>
+      <p class="cap" id="ritmoCap"></p>
+      <div id="ritmoKpis"></div>
+      <div style="overflow-x:auto;margin-top:12px"><table><thead><tr><th>Categoria</th><th class="n">Já gastou</th><th class="n">No ritmo, fecha em</th><th class="n">Média/mês</th><th>Situação</th></tr></thead><tbody id="ritmoTab"></tbody></table></div>
+      <div class="note" id="ritmoNota"></div>
+    </div>
     <div class="card"><h2>Plano de corte — meta R$ 1.200/mês</h2>
       <p class="cap" id="cutCap"></p>
       <div class="slider"><label id="labDeli">Delivery</label><input type="range" id="sDeli" min="0" max="579" step="10" value="250"><div class="out" id="oDeli"></div></div>
@@ -157,7 +163,7 @@
   </div>
 </div>
 </div>
-<script src="js/config.js?v=16"></script>
-<script src="js/app.js?v=16"></script>
+<script src="js/config.js?v=17"></script>
+<script src="js/app.js?v=17"></script>
 </body>
 </html>

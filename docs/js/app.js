@@ -209,11 +209,69 @@ function ajustarSlidersComida(){
   var cc=el('cutCap');
   if(cc) cc.innerHTML='Ajuste os tetos e veja quanto corta ('+txtPeriodo()+'). Comer fora (restaurante + delivery) custa hoje <b>'+BRL(C.rest+C.deli)+'</b>.';
 }
+/* Compara o que ja foi gasto no mes corrente com a media historica,
+   projetando pelo ritmo (gasto / dia decorrido * dias do mes). */
+function renderRitmo(){
+  var tab=el('ritmoTab'); if(!tab) return;
+  var MA=D.mesAtual;
+  if(!MA){ tab.innerHTML='<tr><td colspan="5">Atualize o backend do Apps Script.</td></tr>'; return; }
+  var med=D.food||{};
+  var itens=['Restaurante','Delivery','Mercado','Padaria','Açougue','Doces'];
+  var linhas=[], foraG=0, foraP=0, foraM=0;
+
+  itens.forEach(function(k){
+    var g=(MA.sub&&MA.sub[k])||0, m=med[k]||0;
+    if(g<=0 && m<=0) return;
+    var proj = MA.dia>0 ? g/MA.dia*MA.diasNoMes : g;
+    var pct  = m>0 ? proj/m*100 : 0;
+    var cor='var(--ink-3)', txt='—';
+    if(m>0){
+      if(g>m){ cor='var(--coral)'; txt='já passou a média do mês inteiro'; }
+      else if(pct>110){ cor='var(--coral)'; txt='acelerado ('+pct.toFixed(0)+'%)'; }
+      else if(pct>95){ cor='var(--amber)'; txt='no ritmo ('+pct.toFixed(0)+'%)'; }
+      else { cor='var(--teal)'; txt='folgado ('+pct.toFixed(0)+'%)'; }
+    }
+    linhas.push({k:k,g:g,proj:proj,m:m,cor:cor,txt:txt});
+    if(k==='Restaurante'||k==='Delivery'){ foraG+=g; foraP+=proj; foraM+=m; }
+  });
+
+  tab.innerHTML=linhas.map(function(l){
+    return '<tr><td>'+l.k+'</td><td class="n">'+BRL(l.g)+'</td><td class="n">'+BRL(l.proj)+'</td>'+
+           '<td class="n">'+(l.m>0?BRL(l.m):'—')+'</td>'+
+           '<td style="color:'+l.cor+'">'+l.txt+'</td></tr>';
+  }).join('');
+
+  var cabe = Math.max(foraM-foraG,0);
+  var porDia = MA.diasRestantes>0 ? cabe/MA.diasRestantes : cabe;
+  var okFora = foraP<=foraM*1.05;
+  el('ritmoKpis').innerHTML=
+   '<div class="kpis">'+
+   '<div class="kpi wt"><div class="l">Comer fora até hoje</div><div class="v serif">'+BRL(foraG)+'</div><div class="h">restaurante + delivery</div></div>'+
+   '<div class="kpi '+(okFora?'rec':'sal')+'"><div class="l">No ritmo, fecha em</div><div class="v serif '+(okFora?'pos':'neg')+'">'+BRL(foraP)+'</div><div class="h">média é '+BRL(foraM)+'</div></div>'+
+   '<div class="kpi wt"><div class="l">Ainda cabe no teto</div><div class="v serif '+(cabe>0?'pos':'neg')+'">'+BRL(cabe)+'</div><div class="h">até virar o mês</div></div>'+
+   '<div class="kpi wt"><div class="l">Por dia</div><div class="v serif">'+BRL(porDia)+'</div><div class="h">nos '+MA.diasRestantes+' dias que faltam</div></div>'+
+   '</div>';
+
+  var cap=el('ritmoCap');
+  if(cap) cap.textContent='Mês de '+MA.label+' — dia '+MA.dia+' de '+MA.diasNoMes+'. A projeção assume que o ritmo dos primeiros '+MA.dia+' dias continua igual.';
+
+  var nota=el('ritmoNota');
+  if(nota){
+    if(foraM<=0) nota.textContent='Sem média histórica ainda para comparar.';
+    else if(foraP>foraM*1.05)
+      nota.innerHTML='Comer fora está <b>'+((foraP/foraM-1)*100).toFixed(0)+'% acima</b> da média. Mantendo o teto de <b>'+BRL(foraM)+'</b>, sobram <b>'+BRL(cabe)+'</b> para os '+MA.diasRestantes+' dias que faltam. Vale olhar os maiores lançamentos antes de cortar hábito — muitas vezes é <i>um</i> evento grande, não o dia a dia.';
+    else
+      nota.innerHTML='Comer fora está dentro da média (<b>'+BRL(foraM)+'</b>). Ainda cabem <b>'+BRL(cabe)+'</b> até o fim do mês.';
+  }
+}
+
 function renderMetas(){
+  renderRitmo();
   ajustarSlidersComida();
   const deli=+el("sDeli").value,rest=+el("sRest").value,merc=+el("sMerc").value;
   el("oDeli").textContent=BRL(deli);el("oRest").textContent=BRL(rest);el("oMerc").textContent=BRL(merc);
-  const corte=(579-deli)+(804-rest)+(2244-merc);
+  var CC=comidaAtual();
+  const corte=Math.max(CC.rest-rest,0)+Math.max(CC.deli-deli,0)+Math.max(CC.merc-merc,0);
   const meta=1200,pct=Math.min(corte/meta*100,100);
   const ok=corte>=meta;
   el("cutResult").innerHTML=`<div style="height:20px;border-radius:6px;background:var(--surface-2);overflow:hidden"><div style="width:${pct}%;height:100%;background:${ok?'var(--teal)':'var(--amber)'}"></div></div>
@@ -222,7 +280,7 @@ function renderMetas(){
   // teto delivery
   const sem=deli/4.33,dia=deli/30;
   el("dMes").textContent=BRL(deli);el("dSem").textContent=BRL(sem);el("dDia").textContent=BRL(dia);
-  el("dNote").innerHTML=`Hoje o delivery é R$ 579/mês (~R$ 19/dia). Com o teto de <b>${BRL(deli)}/mês</b>, o limite vira <b>${BRL(sem)}/semana</b> ou <b>${BRL(dia)}/dia</b>. Combine: dias de semana sem delivery, e um "dia de delivery" no fim de semana dentro do teto.`;
+  el("dNote").innerHTML=`Hoje o delivery é ${BRL(CC.deli)}/mês (~${BRL(CC.deli/30)}/dia). Com o teto de <b>${BRL(deli)}/mês</b>, o limite vira <b>${BRL(sem)}/semana</b> ou <b>${BRL(dia)}/dia</b>. Combine: dias de semana sem delivery, e um "dia de delivery" no fim de semana dentro do teto.`;
 }
 ['sDeli','sRest','sMerc'].forEach(id=>el(id).addEventListener('input',renderMetas));
 
