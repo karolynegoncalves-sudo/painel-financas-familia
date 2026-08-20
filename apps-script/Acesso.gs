@@ -7,7 +7,7 @@ var GOOGLE_CLIENT_ID = '220743716320-ia319tnsqqj0mlr7hre4bi0m6qi658vm.apps.googl
 // >>> Adicione aqui os e-mails que podem ver o painel (minúsculas):
 var ALLOWED = [
   'karolyne.goncalves@esags.edu.br',
-  'EMAIL_DO_VINICIUS_AQUI@gmail.com'
+  'vinicius.negrao26@gmail.com'
 ];
 
 function verificarAcesso_(idToken) {
