@@ -1,0 +1,7 @@
+
+# nunca versionar arquivos com lancamentos reais
+apps-script/Itau_Agosto.gs
+apps-script/Complemento_Agosto.gs
+apps-script/Fatura_Agosto.gs
+apps-script/Codigo_NOVO.gs
+*_Agosto.gs
