@@ -1,7 +1,15 @@
+# Este repositorio serve SO o frontend do painel (docs/).
+# Nada de dado real e nada do backend entra aqui.
 
-# nunca versionar arquivos com lancamentos reais
-apps-script/Itau_Agosto.gs
-apps-script/Complemento_Agosto.gs
-apps-script/Fatura_Agosto.gs
-apps-script/Codigo_NOVO.gs
+# o backend vive no Apps Script; copia no repo so envelhece e confunde
+apps-script/
+*.gs
+
+# extratos, faturas, bases
 *_Agosto.gs
+*.csv
+*.xlsx
+*.ofx
+*.pdf
+dash_data.json
+Lancamentos*.csv
