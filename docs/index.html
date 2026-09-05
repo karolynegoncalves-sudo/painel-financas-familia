@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finanças da Família — Karol & Vinícius</title>
+<link rel="stylesheet" href="css/style.css?v=34">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/icon-180.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Finanças">
+  <meta name="theme-color" content="#ffffff">
+</head>
+<body>
+<div id="loginGate">
+  <img src="img/logo.png" alt="Logo" onerror="this.style.display='none'" style="max-height:120px;margin:0 auto 18px;display:block;border-radius:16px">
+  <div class="eyebrow">Finanças da Família</div>
+  <h1>Karol &amp; Vinícius</h1>
+  <p>Painel privado do casal. Acesso restrito — entre com a conta Google que foi convidada.</p>
+  <div id="googleBtn"></div>
+  <div id="loginDenied">Sua conta (<code id="deniedEmail"></code>) não está na lista de convidados.</div>
+</div>
+<div id="app" style="display:none">
+  <div class="wrap"><div class="userbar"><span id="userEmail"></span><button id="btnSair">Sair</button></div></div>
+  <div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:20px">
+      <img src="img/logo.png" alt="Karol e Vinícius" onerror="this.style.display='none'" class="logo-square">
+      <div>
+        <div class="eyebrow">Finanças da Família · Karol &amp; Vinícius</div>
+        <h1 class="title-hero">PAINEL DE FINANÇAS</h1>
+        <div class="sub" id="subPeriodo">Extratos reais</div>
+      </div>
+    </div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+
+  <!-- VISÃO GERAL -->
+  <div class="page on" id="p-visao">
+    <div class="filtros" id="fMes"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="grid">
+      <div class="card full"><h2>Receita × Despesa por mês</h2><p class="cap">Barras: entrou (verde) e saiu (vermelho). Linha: sobra do mês.</p><div id="combo"></div>
+        <div class="legend"><span><i class="dot" style="background:var(--teal)"></i>Receita</span><span><i class="dot" style="background:var(--coral)"></i>Despesa</span><span><i class="dot" style="background:var(--amber)"></i>Sobra</span></div></div>
+      <div class="card"><h2>Despesas por categoria</h2><p class="cap" id="donutCap"></p>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div style="flex:0 0 160px"><div id="donut"></div></div><div style="flex:1;min-width:150px" id="donutLeg"></div></div></div>
+      <div class="card full"><h2>🍟 Já posso gastar? — mês atual</h2><p class="cap" id="pgCap">Quanto vocês já gastaram este mês, e quanto ainda cabe.</p>
+        <div id="podeGastar"></div></div>
+      <div class="card full"><h2>💰 Saldo em cada conta</h2><p class="cap">Valores da aba <b>Reservas</b> da planilha — atualiza sozinho quando você edita lá.</p>
+        <div id="saldoContas"></div></div>
+      <div class="card"><h2>Taxa de poupança &amp; reserva</h2><p class="cap">Quanto da renda sobra pra investir</p>
+        <div style="display:flex;gap:16px;align-items:center"><div style="flex:0 0 150px"><div id="gauge"></div></div>
+        <div style="flex:1"><div style="font-size:12px;color:var(--ink-2)">Reserva já feita</div><div class="serif pos" style="font-size:25px" id="resVal"></div><div style="font-size:11.5px;color:var(--ink-3)" id="resMeta"></div></div></div></div>
+    </div>
+  </div>
+
+  <!-- GAVETA DE LANÇAMENTOS (abre ao clicar num gasto) -->
+  <div id="gavetaLanc" class="gaveta" hidden>
+    <div class="gaveta-fundo" id="gavetaFundo"></div>
+    <div class="gaveta-painel" role="dialog" aria-modal="true" aria-labelledby="gavetaTitulo">
+      <div class="gaveta-topo">
+        <div>
+          <h3 id="gavetaTitulo"></h3>
+          <p class="cap" id="gavetaSub"></p>
+        </div>
+        <button class="gaveta-x" id="gavetaFechar" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="gaveta-corpo" id="gavetaCorpo"></div>
+    </div>
+  </div>
+
+  <!-- FLUXO DE CAIXA -->
+  <div class="page" id="p-fluxo">
+    <div class="filtros" id="fMesFlx"></div>
+    <div class="kpis" id="flxKpis"></div>
+
+    <div class="card full"><h2>Semana a semana</h2>
+      <p class="cap" id="flxSemCap">Quanto entrou e quanto saiu em cada semana do m&ecirc;s.</p>
+      <div id="flxSemanas"></div></div>
+
+    <div class="card full">
+      <h2>+ Novo lan&ccedil;amento</h2>
+      <p class="cap">Digite o valor e a descri&ccedil;&atilde;o; o resto &eacute; s&oacute; escolher. Vai direto pra planilha.</p>
+      <form id="nvForm" class="nvform" autocomplete="off">
+        <label>Data<input type="date" id="nvData" required></label>
+        <label>Valor (R$)<input type="number" id="nvValor" step="0.01" min="0.01" placeholder="0,00" required></label>
+        <label class="wide">Descri&ccedil;&atilde;o<input type="text" id="nvDesc" maxlength="120" placeholder="Ex.: Mercado Nagumo" required></label>
+        <label>Tipo<select id="nvTipo">
+          <option value="saida">Sa&iacute;da</option>
+          <option value="entrada">Entrada</option>
+        </select></label>
+        <label>Conta<select id="nvConta"></select></label>
+        <label>Categoria<select id="nvMacro"></select></label>
+        <label>Subcategoria<select id="nvSub"></select></label>
+        <label>Quem<select id="nvPessoa">
+          <option>Fam&iacute;lia</option><option>Karol</option><option>Vin&iacute;cius</option>
+        </select></label>
+        <label>M&ecirc;s de compet&ecirc;ncia<select id="nvMes"></select></label>
+        <div class="nvacoes">
+          <button type="submit" class="nvbtn" id="nvSalvar">Lan&ccedil;ar</button>
+          <span id="nvMsg"></span>
+        </div>
+      </form>
+      <p class="cap" style="margin-top:10px">Compra no cart&atilde;o? O <b>m&ecirc;s de compet&ecirc;ncia</b> &eacute; o m&ecirc;s da fatura, que pode n&atilde;o ser o m&ecirc;s da compra.</p>
+    </div>
+
+    <div class="card full"><h2>Lan&ccedil;amentos</h2>
+      <div class="ffiltros">
+        <input type="search" id="flxBusca" placeholder="Buscar por descri&ccedil;&atilde;o, categoria, conta...">
+        <select id="flxCat"></select>
+        <select id="flxConta"></select>
+        <select id="flxTipo">
+          <option value="tudo">Entradas e sa&iacute;das</option>
+          <option value="ent">S&oacute; entradas</option>
+          <option value="sai">S&oacute; sa&iacute;das</option>
+        </select>
+        <select id="flxInterna">
+          <option value="nao">S&oacute; dinheiro de verdade</option>
+          <option value="sim">Incluir transfer&ecirc;ncias entre contas</option>
+        </select>
+        <button class="chip" id="flxLimpar">Limpar</button>
+      </div>
+      <div class="fresumo" id="flxResumo"></div>
+      <div id="flxLista"></div>
+    </div>
+
+    <div class="card full"><h2>Resumo por conta</h2>
+      <p class="cap" id="flxCap"></p>
+      <div id="flxTabela"></div></div>
+
+    <div class="card full"><h2>Movimento m&ecirc;s a m&ecirc;s</h2>
+      <p class="cap">Barra de cima = entrou, barra de baixo = saiu. Clique num m&ecirc;s pra ir at&eacute; ele.</p>
+      <div id="flxSerie"></div></div>
+
+    <div class="note" id="flxNota"></div>
+  </div>
+
+  <!-- CATEGORIAS -->
+  <div class="page" id="p-cat">
+    <div class="filtros" id="fMesCat"></div>
+    <div class="card"><h2 id="catTitle">Despesas por categoria</h2><p class="cap" id="catCap">Clique numa categoria (no gráfico ou na lista) pra ver as subcategorias.</p>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="flex:0 0 180px"><div id="catPie"></div></div>
+        <div style="flex:1;min-width:180px"><div id="catbars"></div><div id="catBack"></div></div>
+      </div></div>
+    <div class="card"><h2>Ranking — quais subcategorias gastam mais</h2><p class="cap" id="rankCap">Todas as subcategorias, da maior pra menor.</p>
+      <table><thead><tr><th>#</th><th>Subcategoria</th><th>Categoria</th><th class="n" id="rankTh">R$/mês</th><th class="n">% do gasto</th></tr></thead><tbody id="rankBody"></tbody></table></div>
+  </div>
+
+  <!-- PESSOAS -->
+  <div class="page" id="p-pessoa">
+    <div class="filtros" id="fMesP3"></div>
+    <div class="kpis" id="p3kpis"></div>
+    <div class="filtros" id="p3sel"></div>
+    <div class="card"><h2 id="p3title"></h2><p class="cap" id="p3cap"></p>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="flex:0 0 180px"><div id="p3pie"></div></div>
+        <div style="flex:1;min-width:180px" id="p3bars"></div>
+      </div></div>
+    <div class="callout ok" id="p3Callout"></div>
+  </div>
+
+  <!-- METAS & DELIVERY -->
+  <div class="page" id="p-metas">
+    <div class="card"><h2>Ritmo do mês</h2>
+      <p class="cap" id="ritmoCap"></p>
+      <div id="ritmoKpis"></div>
+      <div style="overflow-x:auto;margin-top:12px"><table><thead><tr><th>Categoria</th><th class="n">Já gastou</th><th class="n">No ritmo, fecha em</th><th class="n" id="thRef">Mês anterior</th><th>Situação</th></tr></thead><tbody id="ritmoTab"></tbody></table></div>
+      <div class="note" id="ritmoNota"></div>
+    </div>
+    <div class="card"><h2>Plano de corte — meta R$ 1.200/mês</h2>
+      <p class="cap" id="cutCap"></p>
+      <div class="slider"><label id="labDeli">Delivery</label><input type="range" id="sDeli" min="0" max="579" step="10" value="250"><div class="out" id="oDeli"></div></div>
+      <div class="slider"><label id="labRest">Restaurante</label><input type="range" id="sRest" min="0" max="804" step="10" value="400"><div class="out" id="oRest"></div></div>
+      
+      <div id="cutResult" style="margin-top:14px"></div>
+    </div>
+    <div class="card"><h2>Teto de delivery — semanal e diário</h2>
+      <p class="cap">Com o teto de delivery que você escolheu acima, o limite fica:</p>
+      <div class="big"><div><div class="sub">Por mês</div><div class="serif n" id="dMes"></div></div>
+        <div><div class="sub">Por semana</div><div class="serif n pos" id="dSem"></div></div>
+        <div><div class="sub">Por dia</div><div class="serif n pos" id="dDia"></div></div></div>
+      <div class="note" id="dNote"></div></div>
+    <div class="card"><h2>🎯 Meta: 2 iPhone 17 Pro Max (256GB — branco + azul)</h2>
+      <p class="cap">Juntar (poupar) ou parcelar? Ajuste o preço e o prazo e veja quanto sai por mês.</p>
+      <div class="slider"><label>Preço por aparelho</label><input type="range" id="ipPreco" min="8000" max="16000" step="100" value="11000"><div class="out" id="oIpPreco"></div></div>
+      <div class="filtros" id="ipModoSel" style="margin:4px 0 12px"><button class="chip on" data-modo="juntar">Juntar (poupar)</button><button class="chip" data-modo="parcelar">Parcelar (a prazo)</button></div>
+      <div class="slider"><label>Em quantos meses</label><input type="range" id="ipMeses" min="1" max="24" step="1" value="12"><div class="out" id="oIpMeses"></div></div>
+      <div id="ipResult" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <!-- PROJEÇÃO -->
+  <div class="page" id="p-proj">
+    <div class="card"><h2>Projeção mês a mês</h2>
+      <p class="cap" id="projCap">Custo fixo atual + média dos variáveis, com as dívidas caindo conforme terminam.</p>
+      <div class="slider"><label id="labAlu">Aluguel do lugar novo</label><input type="range" id="pAlu" min="0" max="4000" step="100" value="2700"><div class="out" id="oAlu"></div></div>
+      <div class="slider"><label id="labCut">Corte nos variáveis</label><input type="range" id="pCut" min="0" max="2000" step="50" value="0"><div class="out" id="oCut"></div></div>
+      <div class="slider"><label id="labMove">Mudar a partir de</label><input type="range" id="pMove" min="0" max="17" step="1" value="1"><div class="out" id="oMove"></div></div>
+      <div class="note" id="projAviso" style="margin:10px 0"></div>
+      <div class="kpis" id="projKpis" style="margin-top:14px"></div>
+      <div id="projChart"></div>
+      <div class="legend"><span><i class="dot" style="background:var(--teal)"></i>Reserva acumulada</span><span><i class="dot" style="background:var(--coral)"></i>Custo mensal</span></div>
+      <div class="note" id="projNota"></div>
+    </div>
+    <div class="card"><h2>Quando cada dívida termina</h2><div id="projAgenda"></div></div>
+    <div class="card"><h2>Tabela mês a mês</h2>
+      <div style="overflow-x:auto"><table><thead><tr><th>Mês</th><th class="n">Fixo</th><th class="n">Aluguel</th><th class="n">Variável</th><th class="n">Dívidas</th><th class="n">Custo total</th><th class="n">Sobra</th><th class="n">Reserva</th></tr></thead><tbody id="projTab"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- PATRIMÔNIO -->
+  <div class="page" id="p-patrim">
+    <div class="kpis" id="ptKpis"></div>
+    <div class="grid">
+      <div class="card"><h2>💰 Reserva &amp; investimentos por banco</h2><p class="cap">Onde está o dinheiro guardado</p><div id="ptBancos"></div></div>
+      <div class="card"><h2>🚗 Bens (veículos + empresa)</h2><p class="cap">Ajuste com os valores reais (FIPE dos veículos, valuation da Leve Sonho).</p>
+        <div class="slider"><label>Carro Onix 2024</label><input type="range" id="ptOnix" min="40000" max="110000" step="1000" value="82000"><div class="out" id="oPtOnix"></div></div>
+        <div class="slider"><label>Moto CG Fan 2008</label><input type="range" id="ptCG" min="3000" max="15000" step="500" value="9000"><div class="out" id="oPtCG"></div></div>
+        <div class="slider"><label>Moto BMW GS650 2013</label><input type="range" id="ptGS" min="15000" max="55000" step="1000" value="33000"><div class="out" id="oPtGS"></div></div>
+        <div class="slider"><label>Leve Sonho (valuation)</label><input type="range" id="ptLS" min="0" max="500000" step="5000" value="0"><div class="out" id="oPtLS"></div></div>
+      </div>
+      <div class="card full"><h2>Composição do patrimônio</h2><div id="ptResumo"></div></div>
+    </div>
+    <div class="note">Valores dos veículos (FIPE) e da Leve Sonho são estimativas editáveis — ajuste com os números reais. <span id="ptNota"></span></div>
+  </div>
+
+  <!-- CUSTO DE VIDA -->
+  <div class="page" id="p-custo">
+    <div class="kpis" id="cvKpis"></div>
+    <div class="grid">
+      <div class="card"><h2>🔒 Custos fixos</h2><p class="cap">Contas que se repetem todo mês</p><div id="cvFixo"></div></div>
+      <div class="card"><h2>🔀 Custos variáveis</h2><p class="cap">O que se repete todo mês — média do ano</p><div id="cvVar"></div></div>
+      <div class="card"><h2>✨ Gasto extraordinário</h2><p class="cap" id="cvExtraCap">Fora do custo de vida: não se repete todo mês, então não entra na conta do que vocês precisam ganhar. Continua contando no gasto do mês.</p><div id="cvExtra"></div></div>
+      <div class="card full"><div id="cvResumo"></div></div>
+    </div>
+  </div>
+
+  <!-- DÍVIDAS -->
+  <div class="page" id="p-dividas">
+    <div class="kpis" id="dvKpis"></div>
+    <div id="dvLista"></div>
+    <div class="note">Para atualizar: na aba <b>Dívidas</b> da planilha, some 1 em "Parcelas pagas" a cada parcela quitada. A barra anda sozinha.</div>
+  </div>
+
+  <!-- ANÁLISES E ESTRATÉGIAS -->
+  <div class="page" id="p-analises">
+    <div class="card">
+      <h2>Análises e estratégias</h2>
+      <p class="cap">Estudos feitos sobre a base do painel. Cada um vira uma página própria, com os números do dia em que foi escrito.</p>
+
+      <a class="estudo" href="https://claude.ai/code/artifact/bf5c2564-6eed-4130-bf31-88da76ff46d9" target="_blank" rel="noopener">
+        <div class="estudo-top">
+          <span class="estudo-tag">Plano · 31/08/2026</span>
+          <span class="estudo-abrir">Abrir &rarr;</span>
+        </div>
+        <h3>A virada para o PIX</h3>
+        <p>Análise de 8 meses de gastos e um plano em 3 fases para sair do cartão de crédito. Mostra por que setembro é o mês mais barato para fazer a troca.</p>
+        <div class="estudo-nums">
+          <span><b>64%</b> dos gastos passam por cartão</span>
+          <span><b>R$ 12.980</b> de parcelas já compradas</span>
+          <span><b>+R$ 1.002</b> sobra no mês da virada</span>
+        </div>
+      </a>
+
+      <div class="note" id="analisesNota"></div>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:34px">
+    <img src="img/logo.png" alt="" onerror="this.style.display='none'" style="max-height:56px;opacity:.9;border-radius:10px">
+    <div class="note" style="text-align:center" id="rodape"></div>
+  </div>
+</div>
+</div>
+<script src="js/config.js?v=34"></script>
+<script src="js/app.js?v=34"></script>
+</body>
+</html>
