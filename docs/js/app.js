@@ -778,6 +778,17 @@ function ehEntrada_(r){
 }
 function ehReal_(r){ return r[LC.FLAG]==='GASTO' || r[LC.FLAG]==='RENDA'; }
 
+/* "Movimento de conta bancaria" = o que de fato entrou ou saiu de um banco.
+   Repara que a pergunta e outra: "So dinheiro de verdade" responde ONDE O
+   DINHEIRO FOI (e por isso esconde transferencia, pra nao contar duas
+   vezes); este responde QUANTO SAIU DA CONTA.
+   Compra no cartao nao move a conta - ela so move quando a fatura e paga,
+   e o pagamento da fatura e INTERNA. Ou seja: o teste tem que ser pela
+   CONTA, nao pela flag. */
+function ehContaBancaria_(r){
+  return !/cart\u00e3o|cartao/i.test(r[LC.CONTA] || '');
+}
+
 function lancDoMes_(){
   const todos = D.lanc || [];
   return filtroMes==='Ano' ? todos : todos.filter(r=>r[LC.MES]===filtroMes);
@@ -786,7 +797,8 @@ function lancDoMes_(){
 function lancFiltrados_(){
   const b = fx.busca.trim().toLowerCase();
   return lancDoMes_().filter(function(r){
-    if(fx.interna==='nao' && !ehReal_(r)) return false;
+    if(fx.interna==='nao'   && !ehReal_(r)) return false;
+    if(fx.interna==='conta' && !ehContaBancaria_(r)) return false;
     if(fx.cat && r[LC.MACRO]!==fx.cat) return false;
     if(fx.conta && r[LC.CONTA]!==fx.conta) return false;
     const ent = ehEntrada_(r);
@@ -940,6 +952,9 @@ function renderExtrato(){
     '<span>Entradas <b class="pos">'+BRL(ent)+'</b></span>'+
     '<span>Sa\u00eddas <b class="neg">'+BRL(sai)+'</b></span>'+
     '<span>Saldo <b>'+BRL(ent-sai)+'</b></span>'+
+    (fx.interna==='conta'
+      ? '<span style="color:var(--ink-3)">s\u00f3 banco \u2014 compra no cart\u00e3o fica de fora, pagamento de fatura entra</span>'
+      : '')+
     '<span id="flxMsgEd"></span>';
 
   const ate = lista.slice(0, fx.mostrar);
