@@ -272,6 +272,18 @@ function metaSalva_(id){
 function salvarMeta_(id, v){
   try{ localStorage.setItem('meta_'+id, String(v)); }catch(e){}
 }
+/* meta separada por item, pra tabela do ritmo. Se o slider ainda nao foi
+   montado, cai na meta salva; sem meta salva, cai no mes anterior. */
+function metaPorItem_(){
+  var ref=comidaRef_();
+  function um(id, padrao){
+    var e=el(id);
+    if(e && e.dataset.init==='1') return +e.value;
+    var s=metaSalva_(id);
+    return s!==null ? s : padrao;
+  }
+  return { Restaurante: um('sRest', ref.rest), Delivery: um('sDeli', ref.deli) };
+}
 function metaComerFora_(){
   var d=el('sDeli'), r=el('sRest');
   if(d && r && d.dataset.init==='1'){
@@ -310,9 +322,11 @@ function renderRitmo(){
   var MA=D.mesAtual;
   if(!MA){ tab.innerHTML='<tr><td colspan="5">Atualize o backend do Apps Script.</td></tr>'; return; }
   var _ref=comidaRef_();
-  var med={'Restaurante':_ref.rest,'Delivery':_ref.deli};
+  var META=metaPorItem_();
+  var med={'Restaurante':META.Restaurante,'Delivery':META.Delivery};
+  var ant={'Restaurante':_ref.rest,'Delivery':_ref.deli};
   var itens=['Restaurante','Delivery'];
-  var linhas=[], foraG=0, foraP=0, foraM=0;
+  var linhas=[], foraG=0, foraP=0, foraM=0, foraA=0;
 
   itens.forEach(function(k){
     var g=(MA.sub&&MA.sub[k])||0, m=med[k]||0;
@@ -326,13 +340,14 @@ function renderRitmo(){
       else if(pct>95){ cor='var(--amber)'; txt='no ritmo ('+pct.toFixed(0)+'%)'; }
       else { cor='var(--teal)'; txt='folgado ('+pct.toFixed(0)+'%)'; }
     }
-    linhas.push({k:k,g:g,proj:proj,m:m,cor:cor,txt:txt});
-    if(k==='Restaurante'||k==='Delivery'){ foraG+=g; foraP+=proj; foraM+=m; }
+    linhas.push({k:k,g:g,proj:proj,m:m,a:(ant[k]||0),cor:cor,txt:txt});
+    if(k==='Restaurante'||k==='Delivery'){ foraG+=g; foraP+=proj; foraM+=m; foraA+=(ant[k]||0); }
   });
 
   tab.innerHTML=linhas.map(function(l){
     return '<tr><td>'+l.k+'</td><td class="n">'+BRL(l.g)+'</td><td class="n">'+BRL(l.proj)+'</td>'+
            '<td class="n">'+(l.m>0?BRL(l.m):'—')+'</td>'+
+           '<td class="n" style="color:var(--ink-3)">'+(l.a>0?BRL(l.a):'—')+'</td>'+
            '<td style="color:'+l.cor+'">'+l.txt+'</td></tr>';
   }).join('');
 
@@ -342,28 +357,29 @@ function renderRitmo(){
   el('ritmoKpis').innerHTML=
    '<div class="kpis">'+
    '<div class="kpi wt"><div class="l">Comer fora até hoje</div><div class="v serif">'+BRL(foraG)+'</div><div class="h">restaurante + delivery</div></div>'+
-   '<div class="kpi '+(okFora?'rec':'sal')+'"><div class="l">No ritmo, fecha em</div><div class="v serif '+(okFora?'pos':'neg')+'">'+BRL(foraP)+'</div><div class="h">média é '+BRL(foraM)+'</div></div>'+
-   '<div class="kpi wt"><div class="l">Ainda cabe no teto</div><div class="v serif '+(cabe>0?'pos':'neg')+'">'+BRL(cabe)+'</div><div class="h">até virar o mês</div></div>'+
+   '<div class="kpi '+(okFora?'rec':'sal')+'"><div class="l">No ritmo, fecha em</div><div class="v serif '+(okFora?'pos':'neg')+'">'+BRL(foraP)+'</div><div class="h">meta é '+BRL(foraM)+(foraA>0?' \u00b7 '+refRotulo_()+' foi '+BRL(foraA):'')+'</div></div>'+
+   '<div class="kpi wt"><div class="l">Ainda cabe na meta</div><div class="v serif '+(cabe>0?'pos':'neg')+'">'+BRL(cabe)+'</div><div class="h">até virar o mês</div></div>'+
    '<div class="kpi wt"><div class="l">Por dia</div><div class="v serif">'+BRL(porDia)+'</div><div class="h">nos '+MA.diasRestantes+' dias que faltam</div></div>'+
    '</div>';
 
   var cap=el('ritmoCap');
-  if(cap) cap.textContent='Mês de '+MA.label+' — dia '+MA.dia+' de '+MA.diasNoMes+'. Comparado com '+refRotulo_()+'. A projeção assume que o ritmo dos primeiros '+MA.dia+' dias continua igual.';
+  if(cap) cap.textContent='Mês de '+MA.label+' — dia '+MA.dia+' de '+MA.diasNoMes+'. Comparado com a meta de corte ('+BRL(foraM)+'), não com o gasto de '+refRotulo_()+'. A projeção assume que o ritmo dos primeiros '+MA.dia+' dias continua igual.';
   var thr=el('thRef'); if(thr) thr.textContent=refRotulo_();
 
   var nota=el('ritmoNota');
   if(nota){
-    if(foraM<=0) nota.textContent='Ainda não há mês anterior para comparar.';
+    if(foraM<=0) nota.textContent='Defina a meta nos sliders do plano de corte, logo abaixo.';
     else if(foraP>foraM*1.05)
-      nota.innerHTML='Comer fora está <b>'+((foraP/foraM-1)*100).toFixed(0)+'% acima</b> de '+refRotulo_()+'. Mantendo o teto de <b>'+BRL(foraM)+'</b>, sobram <b>'+BRL(cabe)+'</b> para os '+MA.diasRestantes+' dias que faltam. Vale olhar os maiores lançamentos antes de cortar hábito — muitas vezes é <i>um</i> evento grande, não o dia a dia.';
+      nota.innerHTML='No ritmo de hoje voc\u00eas fecham <b>'+((foraP/foraM-1)*100).toFixed(0)+'% acima da meta</b> de '+BRL(foraM)+'. Sobram <b>'+BRL(cabe)+'</b> para os '+MA.diasRestantes+' dias que faltam. Vale olhar os maiores lan\u00e7amentos antes de cortar h\u00e1bito \u2014 muitas vezes \u00e9 <i>um</i> evento grande, n\u00e3o o dia a dia.';
     else
-      nota.innerHTML='Comer fora está abaixo de '+refRotulo_()+' (<b>'+BRL(foraM)+'</b>). Ainda cabem <b>'+BRL(cabe)+'</b> até o fim do mês.';
+      nota.innerHTML='No ritmo de hoje voc\u00eas fecham dentro da meta de <b>'+BRL(foraM)+'</b>'+(foraA>foraM?' \u2014 que j\u00e1 \u00e9 <b>'+BRL(foraA-foraM)+'</b> abaixo de '+refRotulo_():'')+'. Ainda cabem <b>'+BRL(cabe)+'</b> at\u00e9 o fim do m\u00eas.';
   }
 }
 
 function renderMetas(){
-  renderRitmo();
+  /* os sliders primeiro: o ritmo le a meta deles */
   ajustarSlidersComida();
+  renderRitmo();
   const deli=+el("sDeli").value,rest=+el("sRest").value;
   salvarMeta_('sDeli',deli); salvarMeta_('sRest',rest);
   el("oDeli").textContent=BRL(deli);el("oRest").textContent=BRL(rest);
