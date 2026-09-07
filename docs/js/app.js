@@ -786,7 +786,7 @@ function fluxoAtual(){
 
 /* ---------- EXTRATO: semanas, filtros e lista de lancamentos ----------
    Aqui o filtro muda os numeros de verdade, nao so a ordem da tabela. */
-let fx = {busca:'', cat:'', conta:'', tipo:'tudo', interna:'nao', mostrar:60};
+let fx = {busca:'', cat:'', conta:'', tipo:'tudo', interna:'sim', mostrar:60};
 
 function ehEntrada_(r){
   if(r.length > LC.ENT) return r[LC.ENT] === 1;
@@ -1055,7 +1055,7 @@ function renderSemanas(){
   liga('flxInterna','interna','change');
   const lp=el('flxLimpar');
   if(lp) lp.onclick=function(){
-    fx={busca:'',cat:'',conta:'',tipo:'tudo',interna:'nao',mostrar:60}; renderExtrato(); };
+    fx={busca:'',cat:'',conta:'',tipo:'tudo',interna:'sim',mostrar:60}; renderExtrato(); };
 })();
 
 
