@@ -251,10 +251,36 @@ function refRotulo_(){
   var m=mesAnterior_();
   return m ? m+'/2026' : 'm\u00e9dia do ano';
 }
-/* teto de comer fora = o que gastaram no mes passado */
+/* referencia = o que gastaram comendo fora no mes passado */
 function tetoComerFora_(){
   var c=comidaRef_();
   return Math.round(c.rest + c.deli) || 1800;
+}
+
+/* ---------- META DE CORTE ----------
+   O teto do "Ja posso gastar?" e a meta que eles definiram nos sliders do
+   plano de corte, nao o gasto do mes passado: medir contra um mes que ja
+   foi ruim nao empurra ninguem pra frente. O mes anterior continua na
+   tela, mas como referencia.
+   A meta fica no localStorage porque e uma decisao, nao um estado de
+   tela - se sumisse a cada recarregada, o slider voltava pro meio e o
+   termometro passava a medir contra um numero que ninguem escolheu. */
+function metaSalva_(id){
+  try{ var v=localStorage.getItem('meta_'+id); return v===null?null:+v; }
+  catch(e){ return null; }
+}
+function salvarMeta_(id, v){
+  try{ localStorage.setItem('meta_'+id, String(v)); }catch(e){}
+}
+function metaComerFora_(){
+  var d=el('sDeli'), r=el('sRest');
+  if(d && r && d.dataset.init==='1'){
+    var m = (+d.value) + (+r.value);
+    if(m>0) return Math.round(m);
+  }
+  var sd=metaSalva_('sDeli'), sr=metaSalva_('sRest');
+  if(sd!==null && sr!==null && (sd+sr)>0) return Math.round(sd+sr);
+  return tetoComerFora_();
 }
 
 function ajustarSlidersComida(){
@@ -262,8 +288,14 @@ function ajustarSlidersComida(){
   var pares=[['sDeli',C.deli,0.5],['sRest',C.rest,0.5]];
   pares.forEach(function(p){
     var e=el(p[0]); if(!e) return;
-    var max=Math.max(Math.round(p[1]),10);
-    e.max=max; if(+e.value>max || e.dataset.init!=='1'){ e.value=Math.round(max*p[2]); e.dataset.init='1'; }
+    var salva=metaSalva_(p[0]);
+    /* o maximo e o mes anterior, mas nunca menor que a meta ja salva */
+    var max=Math.max(Math.round(p[1]), salva||0, 10);
+    e.max=max;
+    if(e.dataset.init!=='1'){
+      e.value = (salva!==null && salva>=0 && salva<=max) ? salva : Math.round(max*p[2]);
+      e.dataset.init='1';
+    } else if(+e.value>max){ e.value=max; }
   });
   var ld=el('labDeli'), lr=el('labRest');
   if(ld) ld.textContent='Delivery ('+refRotulo_()+': '+BRL(C.deli)+')';
@@ -333,6 +365,7 @@ function renderMetas(){
   renderRitmo();
   ajustarSlidersComida();
   const deli=+el("sDeli").value,rest=+el("sRest").value;
+  salvarMeta_('sDeli',deli); salvarMeta_('sRest',rest);
   el("oDeli").textContent=BRL(deli);el("oRest").textContent=BRL(rest);
   var CC=comidaRef_();
   const corte=Math.max(CC.rest-rest,0)+Math.max(CC.deli-deli,0);
@@ -345,6 +378,8 @@ function renderMetas(){
   const sem=deli/4.33,dia=deli/30;
   el("dMes").textContent=BRL(deli);el("dSem").textContent=BRL(sem);el("dDia").textContent=BRL(dia);
   el("dNote").innerHTML=`Hoje o delivery é ${BRL(CC.deli)}/mês (~${BRL(CC.deli/30)}/dia). Com o teto de <b>${BRL(deli)}/mês</b>, o limite vira <b>${BRL(sem)}/semana</b> ou <b>${BRL(dia)}/dia</b>. Combine: dias de semana sem delivery, e um "dia de delivery" no fim de semana dentro do teto.`;
+  /* o teto do termometro e a meta: mexeu no slider, repinta */
+  drawPodeGastar();
 }
 ['sDeli','sRest'].forEach(id=>{var e=el(id); if(e) e.addEventListener('input',renderMetas);});
 
@@ -531,12 +566,13 @@ function renderPatrimonio(){
 ['ptOnix','ptCG','ptGS','ptLS'].forEach(function(id){el(id).addEventListener('input',renderPatrimonio);});
 
 // ---------- POSSO GASTAR? (mes atual) ----------
-/* o teto de comer fora vem do mes anterior (ver tetoComerFora_) */
+/* o teto vem da META DE CORTE (ver metaComerFora_), nao do mes anterior */
 function drawPodeGastar(){
   var box=el('podeGastar'); if(!box) return;
   var MA=D.mesAtual;
   if(!MA){ box.innerHTML='<div class="note">Atualize o backend do Apps Script para ver o mes atual.</div>'; return; }
-  var TETO_ALIM=tetoComerFora_();
+  var TETO_ALIM=Math.max(metaComerFora_(),1);
+  var REF_ANT=tetoComerFora_();
   var alim=((MA.sub&&MA.sub['Restaurante'])||0)+((MA.sub&&MA.sub['Delivery'])||0);
   var rest=Math.max(TETO_ALIM-alim,0);
   var porDia = MA.diasRestantes>0 ? rest/MA.diasRestantes : rest;
@@ -561,7 +597,11 @@ function drawPodeGastar(){
      '<div style="position:absolute;left:'+Math.min(esperado/TETO_ALIM*100,100)+'%;top:0;bottom:0;width:2px;background:var(--ink)"></div>'+
    '</div>'+
    '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-2);margin-top:6px"><span>'+BRL(alim)+' de '+BRL(TETO_ALIM)+' ('+pct.toFixed(0)+'%)</span><span>marca preta = ritmo ideal pra hoje</span></div>'+
-   '<div style="font-size:11.5px;color:var(--ink-3);margin-top:4px">O teto de '+BRL(TETO_ALIM)+' \u00e9 o que voc\u00eas gastaram comendo fora em <b>'+refRotulo_()+'</b> (restaurante + delivery). A ideia \u00e9 comparar com o m\u00eas passado e ver se est\u00e1 caindo. Mercado n\u00e3o entra \u2014 voc\u00ea acompanha no fluxo de caixa.</div>'+
+   '<div style="font-size:11.5px;color:var(--ink-3);margin-top:4px">O teto de <b>'+BRL(TETO_ALIM)+'</b> \u00e9 a <b>meta de corte</b> que voc\u00eas definiram no plano de corte, logo abaixo (restaurante + delivery). '
+     +(REF_ANT>TETO_ALIM
+        ? 'Em '+refRotulo_()+' voc\u00eas gastaram '+BRL(REF_ANT)+', ent\u00e3o a meta pede <b>'+BRL(REF_ANT-TETO_ALIM)+' a menos</b>.'
+        : 'Em '+refRotulo_()+' voc\u00eas gastaram '+BRL(REF_ANT)+' \u2014 a meta ainda n\u00e3o corta nada. Puxe os sliders do plano de corte.')
+     +' Mercado n\u00e3o entra \u2014 voc\u00ea acompanha no fluxo de caixa.</div>'+
    '<div class="callout" style="background:var(--surface-2)">'+msg+'<br><span style="font-size:12px;color:var(--ink-2)">No mes: Mercado '+BRL(merc)+' - Restaurante '+BRL(restr)+' - Delivery '+BRL(deli)+' - Gasto total do mes '+BRL(MA.total)+'</span></div>';
 }
 
