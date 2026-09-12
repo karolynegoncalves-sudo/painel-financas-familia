@@ -1174,6 +1174,64 @@ function mesISOdoInput_(){
   });
 })();
 
+/* ---------- CAIXA PREVISTO DO MES ----------
+   A Karol pediu pra provisionar as entradas. O salario do Vinicius cai em
+   duas partes no mes e o pro-labore dela no fim: olhar so o que ja caiu da
+   a impressao de mes apertado quando na verdade ainda falta entrar.
+
+   ATENCAO: este repositorio e PUBLICO. Nao da pra escrever aqui o valor de
+   cada salario nem o calendario deles. A conta usa a renda recorrente que o
+   backend manda (Apps Script privado) menos o que ja entrou no mes - chega
+   no mesmo resultado sem guardar nada sensivel. */
+function renderCaixaPrevisto(){
+  var box=el('cxPrev'); if(!box) return;
+  var MA=D.mesAtual;
+  if(!MA || !D.kpi){ box.innerHTML='<div class="note">Atualize o backend do Apps Script.</div>'; return; }
+
+  var mes=MESNOME[new Date().getMonth()];
+  var rec=D.kpi.rendaRecorrente || D.kpi.renda || 0;
+
+  var entrou=0, gasto=0;
+  (D.lanc||[]).forEach(function(r){
+    if(r[LC.MES]!==mes) return;
+    if(r[LC.FLAG]==='RENDA') entrou+=r[LC.VALOR];
+    else if(r[LC.FLAG]==='GASTO') gasto+=r[LC.VALOR];
+  });
+
+  var falta=Math.max(rec-entrou, 0);
+  var proj = MA.dia>0 ? gasto/MA.dia*MA.diasNoMes : gasto;
+  var sobraAgora = rec-gasto;
+  var sobraRitmo = rec-proj;
+  var pctEntrou = rec>0 ? Math.min(entrou/rec*100,100) : 0;
+
+  box.innerHTML=
+   '<div class="kpis">'+
+    '<div class="kpi rec"><div class="l">J\u00e1 entrou</div><div class="v serif">'+BRL(entrou)+'</div><div class="h">de '+BRL(rec)+' previstos</div></div>'+
+    '<div class="kpi sal"><div class="l">Ainda entra</div><div class="v serif">'+BRL(falta)+'</div><div class="h">at\u00e9 virar o m\u00eas</div></div>'+
+    '<div class="kpi des"><div class="l">J\u00e1 saiu</div><div class="v serif">'+BRL(gasto)+'</div><div class="h">gasto real do m\u00eas</div></div>'+
+    '<div class="kpi wt"><div class="l">Sobra prevista</div><div class="v serif '+(sobraRitmo>=0?'pos':'neg')+'">'+BRL(sobraRitmo)+'</div><div class="h">se o ritmo continuar</div></div>'+
+   '</div>'+
+   '<div style="height:20px;border-radius:7px;background:var(--surface-2);overflow:hidden;margin:12px 0 6px">'+
+     '<div style="width:'+pctEntrou+'%;height:100%;background:var(--teal)"></div>'+
+   '</div>'+
+   '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-2)">'+
+     '<span>'+pctEntrou.toFixed(0)+'% da renda do m\u00eas j\u00e1 caiu</span>'+
+     '<span>dia '+MA.dia+' de '+MA.diasNoMes+'</span>'+
+   '</div>'+
+   '<div class="ledger" style="margin-top:14px">'+
+     '<div class="lrow"><span class="lbl">Renda que ainda entra</span><span class="val pos">+'+BRL(falta)+'</span></div>'+
+     '<div class="lrow"><span class="lbl">Gasto at\u00e9 hoje</span><span class="val neg">\u2212'+BRL(gasto)+'</span></div>'+
+     '<div class="lrow"><span class="lbl">No ritmo, o m\u00eas fecha gastando</span><span class="val neg">\u2212'+BRL(proj)+'</span></div>'+
+     '<div class="lrow total"><span class="lbl">Sobra se parar de gastar hoje</span><span class="val '+(sobraAgora>=0?'pos':'neg')+'">'+BRL(sobraAgora)+'</span></div>'+
+   '</div>';
+
+  var cap=el('cxPrevCap');
+  if(cap) cap.innerHTML='M\u00eas de '+MA.label+', dia '+MA.dia+' de '+MA.diasNoMes+'. '
+    +'A renda n\u00e3o cai toda de uma vez \u2014 o sal\u00e1rio do Vin\u00edcius vem em duas partes e o pr\u00f3-labore da Karol no fim do m\u00eas. '
+    +'Por isso o caixa parece apertado no come\u00e7o e folga depois. '
+    +'<b>N\u00e3o entra aqui</b> a fatura do cart\u00e3o a vencer nem as parcelas de d\u00edvida \u2014 essas est\u00e3o na aba D\u00edvidas.';
+}
+
 function renderFluxo(){
   if(!el('flxTabela') || !D.fluxo) return;
   const A=fluxoAtual();
@@ -1243,7 +1301,7 @@ function renderFluxo(){
     d.onclick=function(){ filtroMes=d.dataset.m; setupMes(); renderVisao(); renderCat(); renderPessoa(); renderFluxo(); };
   });
 
-  renderSemanas(); renderExtrato(); montarFormNovo();
+  renderCaixaPrevisto(); renderSemanas(); renderExtrato(); montarFormNovo();
 
   el('flxNota').innerHTML='<b>Entre contas</b> é dinheiro que só trocou de bolso: pagamento de fatura, '+
     'transferência de um banco pro outro, estorno de compra. Não é gasto nem renda, por isso fica numa coluna à parte — '+
