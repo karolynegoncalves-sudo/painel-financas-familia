@@ -733,14 +733,169 @@ function renderDividas(){
 }
 
 function renderAnalises(){
-  var n = el('analisesNota'); if(!n || !D.kpi) return;
-  var cv = D.custoVida;
-  var custo = cv ? (cv.fixo + cv.variavel + cv.parcelas) : null;
-  var margem = custo ? (D.kpi.renda - custo) : null;
-  n.innerHTML = 'Números de hoje: renda <b>' + BRL(D.kpi.renda) + '</b>, custo de vida <b>'
-    + (custo ? BRL(custo) : '—') + '</b> (fixo + variável + parcelas), margem real <b>'
-    + (margem !== null ? BRL(margem) : '—') + '</b>. '
-    + 'Se estes números mudarem muito, vale refazer o estudo — ele foi escrito com os dados de 31/08/2026.';
+  if(!el('anLeitura') || !D.kpi) return;
+  var CV=D.custoVida;
+  if(!CV){ el('anLeitura').innerHTML='<div class="note">Atualize o backend do Apps Script.</div>'; return; }
+
+  /* compara com a renda que entra TODO mes, nao com a media do ano: a media
+     inclui participacao nos lucros, que nao da pra contar como salario */
+  var rendaRec = D.kpi.rendaRecorrente || D.kpi.renda;
+  var custo    = CV.total || (CV.fixo+CV.variavel+CV.parcelas);
+  var margem   = rendaRec - custo;
+  var xrec     = CV.extra || 0;
+  var xpont    = CV.extraPontual || 0;
+  var folga    = margem - xrec;
+
+  var reserva=0;
+  (D.reservas||[]).forEach(function(r){ reserva += (r.valor||0); });
+  var mesesRes = custo>0 ? reserva/custo : 0;
+  var umaCasa = function(v){ return v.toFixed(1).replace('.',','); };
+
+  el('anLeitura').innerHTML=
+   '<div class="kpis">'+
+    '<div class="kpi wt"><div class="l">Custo de vida</div><div class="v serif">'+BRL(custo)+'</div><div class="h">fixo + variável + parcelas</div></div>'+
+    '<div class="kpi '+(margem>=0?'rec':'des')+'"><div class="l">Margem</div><div class="v serif">'+BRL(margem)+'</div><div class="h">sobra da renda que entra todo mês</div></div>'+
+    '<div class="kpi des"><div class="l">Extraordinário</div><div class="v serif">'+BRL(xrec)+'</div><div class="h">o que se repete, por mês</div></div>'+
+    '<div class="kpi '+(folga>=0?'rec':'des')+'"><div class="l">Folga de verdade</div><div class="v serif">'+BRL(folga)+'</div><div class="h">margem menos extraordinário</div></div>'+
+   '</div>'+
+   '<div class="callout '+(folga>0?'ok':'')+'" style="margin-top:12px">'+
+     (folga>0
+       ? 'A renda que entra <b>todo mês</b> cobre a vida de vocês <b>e</b> o gasto que se repete sem ser rotina, com <b>'+BRL(folga)+'</b> sobrando. Essa folga é o que pode virar aluguel.'
+       : 'A renda que entra todo mês ainda não cobre a vida mais o extraordinário: faltam <b>'+BRL(-folga)+'</b>. Quem tapa esse buraco hoje é a participação nos lucros.')+
+   '</div>'+
+   '<div class="note" style="margin-top:10px">Fora dessa conta fica o <b>evento pontual</b> — '+BRL(xpont)+'/mês em média, de coisas que apareceram em menos de três meses e por isso não entram na média de rotina. Saiu da média, não da conta bancária. A reserva de <b>'+BRL(reserva)+'</b> cobre <b>'+umaCasa(mesesRes)+' meses</b> de custo de vida.</div>';
+
+  var nums=el('anEstudoNums');
+  if(nums) nums.innerHTML=
+    '<span><b>'+BRL(custo)+'</b> de custo de vida</span>'+
+    '<span><b>'+BRL(margem)+'</b> de margem por mês</span>'+
+    '<span><b>'+umaCasa(mesesRes)+' meses</b> de reserva</span>';
+
+  renderAnAluguel_(rendaRec, CV);
+  renderAnCartao_();
+  renderAnExtra_(CV);
+
+  var n=el('analisesNota');
+  if(n) n.innerHTML='Os números desta aba saem da base na hora em que você abre o painel. O estudo escrito congela a leitura do dia em que foi publicado — se os dois discordarem, esta aba está mais atual.';
+}
+
+/* ---------- ALUGUEL: em que mes a conta vira ----------
+   Em vez de uma tabela de 28 linhas, agrupo os meses em que a margem e a
+   mesma. A margem so muda quando uma parcela de divida acaba ou a faculdade
+   termina - sao esses os degraus que interessam pra decidir quando sair. */
+function renderAnAluguel_(rendaRec, CV){
+  var box=el('anAlu'); if(!box) return;
+  var divs=D.dividas||[];
+  var fimFac=(D.agenda&&D.agenda.fimFaculdade)||'2027-12';
+  var facMes=(D.agenda&&D.agenda.faculdadeMes)||0;
+  var fAno=parseInt(fimFac.slice(0,4),10), fMes=parseInt(fimFac.slice(5,7),10);
+
+  /* segue o slider da aba Projecao se ele existir, pra as duas abas nao
+     discordarem sobre quanto custa o aluguel */
+  var sl=el('pAlu');
+  var ALU = (sl && +sl.value) ? +sl.value : 2700;
+
+  var hoje=new Date();
+  var serie=mesesAte_(hoje.getFullYear(), hoje.getMonth()+1, 2028, 12);
+  var rot=function(pt){ return MESNOME[pt.mes-1]+'/'+String(pt.ano).slice(2); };
+
+  var fases=[], ant=null;
+  serie.forEach(function(pt){
+    var parc=0;
+    divs.forEach(function(d){ parc += parcelaNoMes_(d, pt.ano, pt.mes); });
+    var fac = (pt.ano<fAno || (pt.ano===fAno && pt.mes<=fMes)) ? 0 : -facMes;
+    var custoM  = CV.fixo + CV.variavel + parc + fac;
+    var margemM = rendaRec - custoM;
+    var chave = Math.round(margemM);
+    if(!ant || ant.chave!==chave){ ant={chave:chave, custo:custoM, margem:margemM, de:pt, ate:pt}; fases.push(ant); }
+    else { ant.ate=pt; }
+  });
+
+  var linhas=fases.map(function(f){
+    var dif=f.margem-ALU;
+    var per=(f.de.ano===f.ate.ano && f.de.mes===f.ate.mes) ? rot(f.de) : rot(f.de)+' a '+rot(f.ate);
+    return '<tr><td>'+per+'</td>'+
+      '<td class="num" style="text-align:right">'+BRL(f.custo)+'</td>'+
+      '<td class="num" style="text-align:right">'+BRL(f.margem)+'</td>'+
+      '<td class="num" style="text-align:right;color:'+(dif>=0?'var(--teal)':'var(--coral)')+'">'+
+        (dif>=0 ? 'cabe, sobram '+BRL(dif) : 'falta '+BRL(-dif))+'</td></tr>';
+  }).join('');
+
+  box.innerHTML='<div style="overflow-x:auto"><table><thead><tr>'+
+    '<th>Quando</th><th style="text-align:right">Custo de vida</th>'+
+    '<th style="text-align:right">Margem</th><th style="text-align:right">Com o aluguel</th>'+
+    '</tr></thead><tbody>'+linhas+'</tbody></table></div>';
+
+  var cabe=null;
+  fases.forEach(function(f){ if(cabe===null && (f.margem-ALU)>=0) cabe=f; });
+  var cap=el('anAluCap');
+  if(cap) cap.innerHTML='Aluguel de referência de <b>'+BRL(ALU)+'</b> — dá pra mexer nesse valor na aba <b>Projeção 2027</b>. '
+    +'Cada linha é um pedaço de tempo em que a margem não muda; ela só muda quando uma parcela acaba. '
+    +(cabe ? 'Pelo que a base mostra hoje, o aluguel passa a caber em <b>'+rot(cabe.de)+'</b>.'
+           : 'Com o valor de hoje, o aluguel não chega a caber até o fim de 2028.');
+}
+
+/* ---------- CARTAO x CONTA, mes a mes ---------- */
+function renderAnCartao_(){
+  var box=el('anCartao'); if(!box) return;
+  var por={};
+  (D.lanc||[]).forEach(function(r){
+    if(r[LC.FLAG]!=='GASTO') return;
+    var m=r[LC.MES]; por[m]=por[m]||{c:0,p:0};
+    if(!ehContaBancaria_(r)) por[m].c+=r[LC.VALOR]; else por[m].p+=r[LC.VALOR];
+  });
+  var ms=(MESES||[]).filter(function(m){ return por[m] && (por[m].c+por[m].p)>0; });
+  if(!ms.length){ box.innerHTML='<div class="note">Sem lançamentos suficientes.</div>'; return; }
+
+  var somaC=0, somaT=0;
+  ms.forEach(function(m){ somaC+=por[m].c; somaT+=por[m].c+por[m].p; });
+  var pctAno = somaT>0 ? somaC/somaT*100 : 0;
+  var ult=por[ms[ms.length-1]], pctUlt=(ult.c+ult.p)>0 ? ult.c/(ult.c+ult.p)*100 : 0;
+
+  box.innerHTML = ms.map(function(m){
+    var o=por[m], t=o.c+o.p, pc=t>0?o.c/t*100:0;
+    var dest=(m===ms[ms.length-1]);
+    return '<div class="row">'+
+      '<div class="nm" style="width:46px'+(dest?';color:var(--teal);font-weight:600':'')+'">'+m+'</div>'+
+      '<div class="bar" style="display:flex;background:var(--surface-2)">'+
+        '<i style="width:'+pc+'%;background:var(--coral)"></i>'+
+        '<i style="width:'+(100-pc)+'%;background:var(--teal)"></i>'+
+      '</div>'+
+      '<div class="vl num" style="width:62px'+(dest?';color:var(--teal)':'')+'">'+Math.round(pc)+'%</div></div>';
+  }).join('')+
+  '<div class="legend" style="margin-top:8px">'+
+    '<span><i class="dot" style="background:var(--coral)"></i>cartão de crédito</span>'+
+    '<span><i class="dot" style="background:var(--teal)"></i>conta (PIX, débito, boleto)</span></div>';
+
+  var cap=el('anCartaoCap');
+  if(cap) cap.innerHTML='Quanto do gasto de cada mês passou no cartão. O problema do cartão não é ele em si: é que ele separa a hora de gastar da hora de pagar. '
+    +'Na média do período são <b>'+Math.round(pctAno)+'%</b>; no último mês, <b>'+Math.round(pctUlt)+'%</b>. '
+    +'O mês corrente ainda sobe depois — as compras da fatura em aberto só entram na base quando ela fechar.';
+}
+
+/* ---------- EXTRAORDINARIO: o que se repete e o que foi evento ---------- */
+function renderAnExtra_(CV){
+  var box=el('anExtra'); if(!box) return;
+  var ord=function(o){ return Object.keys(o||{}).map(function(k){ return [k,o[k]]; })
+      .sort(function(x,y){ return y[1]-x[1]; }); };
+  var rec=ord(CV.extraDet), pon=ord(CV.extraFora);
+  var linhas=function(l){
+    if(!l.length) return '<div class="lrow"><span class="lbl">nada por aqui</span><span class="val">—</span></div>';
+    return l.slice(0,8).map(function(x){
+      return '<div class="lrow"><span class="lbl">'+esc_(x[0])+'</span><span class="val">'+BRL(x[1])+'</span></div>'; }).join('');
+  };
+
+  box.innerHTML=
+   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">'+
+     '<div><h3 style="font-size:14px;margin:0 0 6px">Se repete — entra na conta</h3><div class="ledger">'+
+       linhas(rec)+'<div class="lrow total"><span class="lbl">Por mês</span><span class="val">'+BRL(CV.extra||0)+'</span></div></div></div>'+
+     '<div><h3 style="font-size:14px;margin:0 0 6px">Foi evento — fora da média</h3><div class="ledger">'+
+       linhas(pon)+'<div class="lrow total"><span class="lbl">Por mês</span><span class="val">'+BRL(CV.extraPontual||0)+'</span></div></div></div>'+
+   '</div>';
+
+  var cap=el('anExtraCap');
+  if(cap) cap.innerHTML='A regra é a que você pediu: uma linha só entra na média se apareceu em <b>três meses diferentes ou mais</b>. '
+    +'A da esquerda é a conta que a margem precisa cobrir todo mês. A da direita aconteceu de verdade, mas não é hábito — saiu da média, não da conta bancária.';
 }
 
 /* ---------- FLUXO DE CAIXA ----------
@@ -1217,7 +1372,23 @@ function renderCaixaPrevisto(){
 
   var C=D.compromissos||{};
   var temC=!!D.compromissos;
-  var fats=C.faturas||[], fat=C.faturasTotal||0, parc=C.parcelaMes||0;
+  var fats=C.faturas||[], parc=C.parcelaMes||0;
+
+  /* Fatura que vence no mes que vem NAO sai deste mes. Contar ela aqui tirava
+     do "livre" um dinheiro que so vai embora depois - foi o que confundiu a
+     Karol em 23/09, com a fatura do Bradesco vencendo 20/10 aparecendo como
+     "falta pagar" ainda em setembro. Entao separo as duas: a que vence dentro
+     do mes desconta, a que vence depois so aparece como aviso. */
+  var hoje=new Date(), mesAtualKey=hoje.getFullYear()+'-'+('0'+(hoje.getMonth()+1)).slice(-2);
+  function venceNoMes_(f){
+    var p=String(f.vence||'').split('/');          // 'dd/mm/aaaa'
+    if(p.length!==3) return true;                   // sem data legivel, melhor descontar
+    return (p[2]+'-'+('0'+p[1]).slice(-2))===mesAtualKey;
+  }
+  var fatsMes=fats.filter(venceNoMes_), fatsDepois=fats.filter(function(f){ return !venceNoMes_(f); });
+  var soma_=function(l){ return l.reduce(function(s,f){ return s+(f.valor||0); },0); };
+  var fat=soma_(fatsMes), fatDepois=soma_(fatsDepois);
+
   var aPagar=fat+parc;
   var livre=corrente+falta-aPagar;
 
@@ -1225,17 +1396,20 @@ function renderCaixaPrevisto(){
    '<div class="kpis">'+
     '<div class="kpi wt"><div class="l">Em conta hoje</div><div class="v serif">'+BRL(corrente)+'</div><div class="h">Ita\u00fa + Bradesco</div></div>'+
     '<div class="kpi rec"><div class="l">Ainda entra</div><div class="v serif">'+BRL(falta)+'</div><div class="h">'+BRL(entrou)+' de '+BRL(rec)+' j\u00e1 caiu</div></div>'+
-    '<div class="kpi des"><div class="l">Falta pagar</div><div class="v serif">'+BRL(aPagar)+'</div><div class="h">fatura + parcelas</div></div>'+
+    '<div class="kpi des"><div class="l">Falta pagar</div><div class="v serif">'+BRL(aPagar)+'</div><div class="h">'+(fat>0?'fatura + parcelas':'s\u00f3 parcelas \u2014 nenhuma fatura vence neste m\u00eas')+'</div></div>'+
     '<div class="kpi '+(livre>=0?'rec':'des')+'"><div class="l">Livre at\u00e9 virar o m\u00eas</div><div class="v serif">'+BRL(livre)+'</div><div class="h">depois de pagar tudo</div></div>'+
    '</div>'+
    '<div class="ledger" style="margin-top:14px">'+
      '<div class="lrow"><span class="lbl">Em conta corrente hoje</span><span class="val">'+BRL(corrente)+'</span></div>'+
      '<div class="lrow"><span class="lbl">(+) Renda que ainda entra no m\u00eas</span><span class="val pos">+'+BRL(falta)+'</span></div>'+
      (temC
-       ? fats.map(function(f){
+       ? fatsMes.map(function(f){
            return '<div class="lrow"><span class="lbl">(\u2212) Fatura '+esc_(f.banco)+', vence '+esc_(f.vence)+'</span><span class="val neg">\u2212'+BRL(f.valor)+'</span></div>';
          }).join('')
          + '<div class="lrow"><span class="lbl">(\u2212) Parcelas de d\u00edvida do m\u00eas</span><span class="val neg">\u2212'+BRL(parc)+'</span></div>'
+         + fatsDepois.map(function(f){
+             return '<div class="lrow"><span class="lbl">Fatura '+esc_(f.banco)+' \u2014 vence '+esc_(f.vence)+', <b>sai s\u00f3 no m\u00eas que vem</b></span><span class="val">'+BRL(f.valor)+'</span></div>';
+           }).join('')
        : '<div class="lrow"><span class="lbl">Fatura e parcelas</span><span class="val">reimplante o Apps Script pra aparecer</span></div>')+
      '<div class="lrow total"><span class="lbl">Livre at\u00e9 virar o m\u00eas</span><span class="val '+(livre>=0?'pos':'neg')+'">'+BRL(livre)+'</span></div>'+
    '</div>'+
@@ -1249,7 +1423,8 @@ function renderCaixaPrevisto(){
   if(cap) cap.innerHTML='M\u00eas de '+MA.label+', dia '+MA.dia+' de '+MA.diasNoMes+'. '
     +'Esta \u00e9 a conta de <b>caixa</b>: o que tem na conta, o que ainda entra e o que ainda sai. '
     +'N\u00e3o \u00e9 a mesma conta do gasto do m\u00eas \u2014 a fatura cont\u00e9m compras que j\u00e1 foram contadas como gasto, '
-    +'ent\u00e3o somar as duas contaria o mesmo dinheiro duas vezes.';
+    +'ent\u00e3o somar as duas contaria o mesmo dinheiro duas vezes.'
+    +(fatDepois>0 ? ' <b>Fatura que vence depois do fim do m\u00eas n\u00e3o desconta daqui</b> \u2014 ela aparece na lista, mas como aviso.' : '');
 }
 
 function renderFluxo(){

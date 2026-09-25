@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças da Família — Karol & Vinícius</title>
-<link rel="stylesheet" href="css/style.css?v=40">
+<link rel="stylesheet" href="css/style.css?v=41">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="apple-touch-icon" sizes="180x180" href="img/icon-180.png">
   <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
@@ -254,23 +254,35 @@
   <!-- ANÁLISES E ESTRATÉGIAS -->
   <div class="page" id="p-analises">
     <div class="card">
-      <h2>Análises e estratégias</h2>
-      <p class="cap">Estudos feitos sobre a base do painel. Cada um vira uma página própria, com os números do dia em que foi escrito.</p>
+      <h2>A prova de setembro</h2>
+      <p class="cap">O estudo do painel, relido com os n&uacute;meros de hoje. Nada aqui est&aacute; escrito &agrave; m&atilde;o &mdash; tudo &eacute; calculado na hora, ent&atilde;o quando a base muda o texto muda junto.</p>
+      <div id="anLeitura"></div>
+    </div>
 
-      <a class="estudo" href="https://claude.ai/code/artifact/bf5c2564-6eed-4130-bf31-88da76ff46d9" target="_blank" rel="noopener">
+    <div class="card full"><h2>Quando o aluguel cabe</h2>
+      <p class="cap" id="anAluCap"></p>
+      <div id="anAlu"></div></div>
+
+    <div class="card full"><h2>O cart&atilde;o m&ecirc;s a m&ecirc;s</h2>
+      <p class="cap" id="anCartaoCap"></p>
+      <div id="anCartao"></div></div>
+
+    <div class="card full"><h2>O gasto extraordin&aacute;rio</h2>
+      <p class="cap" id="anExtraCap"></p>
+      <div id="anExtra"></div></div>
+
+    <div class="card">
+      <h2>Estudo completo</h2>
+      <p class="cap">A vers&atilde;o escrita, com o hist&oacute;rico das corre&ccedil;&otilde;es e as contas at&eacute; 2028.</p>
+      <a class="estudo" href="https://claude.ai/artifact/QdY8DsQU72FfkdTrUNj1NQ" target="_blank" rel="noopener">
         <div class="estudo-top">
-          <span class="estudo-tag">Plano · 31/08/2026</span>
+          <span class="estudo-tag">Estudo &middot; 8&ordf; vers&atilde;o</span>
           <span class="estudo-abrir">Abrir &rarr;</span>
         </div>
-        <h3>A virada para o PIX</h3>
-        <p>Análise de 8 meses de gastos e um plano em 3 fases para sair do cartão de crédito. Mostra por que setembro é o mês mais barato para fazer a troca.</p>
-        <div class="estudo-nums">
-          <span><b>64%</b> dos gastos passam por cartão</span>
-          <span><b>R$ 12.980</b> de parcelas já compradas</span>
-          <span><b>+R$ 1.002</b> sobra no mês da virada</span>
-        </div>
+        <h3>A prova de setembro</h3>
+        <p>Quinze meses de base, a migra&ccedil;&atilde;o do cart&atilde;o para o PIX, e a conta de quanto custa sair de casa alugada em fevereiro de 2027.</p>
+        <div class="estudo-nums" id="anEstudoNums"></div>
       </a>
-
       <div class="note" id="analisesNota"></div>
     </div>
   </div>
@@ -281,7 +293,7 @@
   </div>
 </div>
 </div>
-<script src="js/config.js?v=40"></script>
-<script src="js/app.js?v=40"></script>
+<script src="js/config.js?v=41"></script>
+<script src="js/app.js?v=41"></script>
 </body>
 </html>
