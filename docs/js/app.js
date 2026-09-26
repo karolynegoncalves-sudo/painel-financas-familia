@@ -29,9 +29,13 @@ function chipsMes_(id){
     b.onclick=function(){ filtroMes=b.dataset.m; aberta=null; p3Aberta=null; setupMes(); renderVisao(); renderCat(); renderPessoa(); renderFluxo(); };
   });
 }
-function setupMes(){MESES=Object.keys(D.mensal);
-  chipsMes_('fMesCat'); chipsMes_('fMesP3'); chipsMes_('fMesFlx');el("fMes").innerHTML=['Ano',...MESES].map(m=>`<button class="chip${m==='Ano'?' on':''}" data-m="${m}">${m==='Ano'?'Ano (média)':m}</button>`).join("");
-[...el("fMes").querySelectorAll('.chip')].forEach(b=>b.onclick=()=>{filtroMes=b.dataset.m;setupMes();renderVisao();renderCat();renderPessoa();renderFluxo();});}
+function setupMes(){
+  MESES=Object.keys(D.mensal);
+  /* a Visao geral montava os botoes de mes a mao, com o "Ano" sempre marcado:
+     o filtro mudava os numeros mas a bolinha verde nao saia do lugar. Agora as
+     quatro abas usam a mesma funcao, que marca o mes que esta valendo. */
+  chipsMes_('fMes'); chipsMes_('fMesCat'); chipsMes_('fMesP3'); chipsMes_('fMesFlx');
+}
 
 
 function subAtual(macroNome){
