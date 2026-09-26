@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças da Família — Karol & Vinícius</title>
-<link rel="stylesheet" href="css/style.css?v=42">
+<link rel="stylesheet" href="css/style.css?v=43">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="apple-touch-icon" sizes="180x180" href="img/icon-180.png">
   <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
@@ -253,11 +253,16 @@
 
   <!-- ANÁLISES E ESTRATÉGIAS -->
   <div class="page" id="p-analises">
-    <div class="card">
-      <h2>A prova de setembro</h2>
-      <p class="cap">O estudo do painel, relido com os n&uacute;meros de hoje. Nada aqui est&aacute; escrito &agrave; m&atilde;o &mdash; tudo &eacute; calculado na hora, ent&atilde;o quando a base muda o texto muda junto.</p>
-      <div id="anLeitura"></div>
+    <div class="card full">
+      <h2>O m&ecirc;s escrito</h2>
+      <p class="cap">Cada m&ecirc;s vira um texto curto com os n&uacute;meros dentro. Escolha qual ler:</p>
+      <div class="chips" id="anMesSel" style="margin-bottom:16px"></div>
+      <div id="anTexto"></div>
     </div>
+
+    <div class="card full"><h2>Hist&oacute;rico</h2>
+      <p class="cap" id="anHistCap"></p>
+      <div id="anHist" class="an-hist-wrap"></div></div>
 
     <div class="card full"><h2>Quando o aluguel cabe</h2>
       <p class="cap" id="anAluCap"></p>
@@ -273,13 +278,13 @@
 
     <div class="card">
       <h2>Estudo completo</h2>
-      <p class="cap">A vers&atilde;o escrita, com o hist&oacute;rico das corre&ccedil;&otilde;es e as contas at&eacute; 2028.</p>
+      <p class="cap">A vers&atilde;o longa, com o hist&oacute;rico das corre&ccedil;&otilde;es e as contas at&eacute; 2028.</p>
       <a class="estudo" href="https://claude.ai/artifact/QdY8DsQU72FfkdTrUNj1NQ" target="_blank" rel="noopener">
         <div class="estudo-top">
-          <span class="estudo-tag">Estudo &middot; 8&ordf; vers&atilde;o</span>
+          <span class="estudo-tag">Estudo &middot; 10&ordf; vers&atilde;o</span>
           <span class="estudo-abrir">Abrir &rarr;</span>
         </div>
-        <h3>A prova de setembro</h3>
+        <h3>Setembro fechado</h3>
         <p>Quinze meses de base, a migra&ccedil;&atilde;o do cart&atilde;o para o PIX, e a conta de quanto custa sair de casa alugada em fevereiro de 2027.</p>
         <div class="estudo-nums" id="anEstudoNums"></div>
       </a>
@@ -293,7 +298,7 @@
   </div>
 </div>
 </div>
-<script src="js/config.js?v=42"></script>
-<script src="js/app.js?v=42"></script>
+<script src="js/config.js?v=43"></script>
+<script src="js/app.js?v=43"></script>
 </body>
 </html>

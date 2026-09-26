@@ -238,3 +238,30 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 .lrow.total{border-top:2px solid var(--line);border-bottom:0}
 .lrow.total .lbl{color:var(--ink);font-weight:700}
 .lrow.total .val{font-weight:600;font-size:15px}
+
+/* aba Analises: o mes escrito, no tom do estudo */
+.an-eyebrow{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px}
+.card h2.an-h1{font-family:"EB Garamond",Georgia,serif;font-size:30px;font-weight:600;line-height:1.12;letter-spacing:-.4px;margin:2px 0 10px}
+.an-lede{font-size:16.5px;line-height:1.6;color:var(--ink-2);margin:0;max-width:64ch}
+.an-lede b{color:var(--ink)}
+.an-h3{font-size:14px;font-weight:700;margin:22px 0 8px}
+.an-p{font-size:14px;line-height:1.6;color:var(--ink-2);max-width:66ch;margin:12px 0 0}
+.an-nota{border-left:3px solid var(--amber);background:var(--surface-2);border-radius:0 8px 8px 0;padding:13px 16px;margin:18px 0}
+.an-nota .t{font-size:12.5px;font-weight:700;color:var(--amber);margin-bottom:5px}
+.an-nota p{font-size:13.5px;line-height:1.55;color:var(--ink-2);margin:0;max-width:64ch}
+.an-destaque{background:var(--teal-soft);border-radius:10px;padding:6px 18px;margin:10px 0 4px}
+.an-ev{display:flex;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.an-ev:last-child{border-bottom:0}
+.an-ev-d{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--ink-3);min-width:56px}
+.an-ev-t{flex:1;font-size:14px;color:var(--ink)}
+.an-ev-q{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.an-hist-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.an-hist{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer}
+.an-hist:hover{border-color:var(--teal)}
+.an-hist.on{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
+.an-hist-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.an-hist-m{font-size:13px;font-weight:700}
+.an-hist-v{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--ink-2)}
+.an-hist-bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin:8px 0 7px}
+.an-hist-bar i{display:block;height:100%}
+.an-hist-r{font-size:11.5px;line-height:1.45;color:var(--ink-3)}

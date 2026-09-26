@@ -736,66 +736,226 @@ function renderDividas(){
   }).join('');
 }
 
+/* ================= ANALISES =================
+   A Karol pediu que esta aba fosse escrita como o estudo, e nao so uma pilha
+   de tabelas - e que desse pra folhear os meses anteriores. Entao aqui cada
+   mes vira um texto curto com os numeros dentro, e embaixo fica o historico.
+
+   Tudo e calculado na hora a partir de D. Nenhum valor real mora neste
+   arquivo, que e publico. */
+
+var anMes = null;   /* mes que esta sendo lido; null = o mais recente */
+
 function renderAnalises(){
-  if(!el('anLeitura') || !D.kpi) return;
+  if(!el('anMesSel') || !D.kpi) return;
   var CV=D.custoVida;
-  if(!CV){ el('anLeitura').innerHTML='<div class="note">Atualize o backend do Apps Script.</div>'; return; }
+  if(!CV){ el('anMesSel').innerHTML='<div class="note">Atualize o backend do Apps Script.</div>'; return; }
 
-  /* compara com a renda que entra TODO mes, nao com a media do ano: a media
-     inclui participacao nos lucros, que nao da pra contar como salario */
-  var rendaRec = D.kpi.rendaRecorrente || D.kpi.renda;
-  var custo    = CV.total || (CV.fixo+CV.variavel+CV.parcelas);
-  var margem   = rendaRec - custo;
-  var xrec     = CV.extra || 0;
-  var xpont    = CV.extraPontual || 0;
-  var folga    = margem - xrec;
+  var ms=(MESES||[]).slice();
+  if(!ms.length) return;
+  if(!anMes || ms.indexOf(anMes)<0) anMes = ms[ms.length-1];
 
-  var reserva=0;
-  (D.reservas||[]).forEach(function(r){ reserva += (r.valor||0); });
-  var mesesRes = custo>0 ? reserva/custo : 0;
-  var umaCasa = function(v){ return v.toFixed(1).replace('.',','); };
+  /* botoes de mes proprios da aba: aqui a navegacao e o assunto, entao ela
+     nao divide o filtro global com as outras abas */
+  el('anMesSel').innerHTML = ms.map(function(m){
+    return '<button class="chip'+(m===anMes?' on':'')+'" data-m="'+esc_(m)+'">'+esc_(m)+'</button>';
+  }).join('');
+  [].forEach.call(el('anMesSel').querySelectorAll('.chip'), function(b){
+    b.onclick=function(){ anMes=b.dataset.m; renderAnalises(); if(el('p-analises')) el('p-analises').scrollIntoView({behavior:'smooth',block:'start'}); };
+  });
 
-  el('anLeitura').innerHTML=
-   '<div class="kpis">'+
-    '<div class="kpi wt"><div class="l">Custo de vida</div><div class="v serif">'+BRL(custo)+'</div><div class="h">fixo + variável + parcelas</div></div>'+
-    '<div class="kpi '+(margem>=0?'rec':'des')+'"><div class="l">Margem</div><div class="v serif">'+BRL(margem)+'</div><div class="h">sobra da renda que entra todo mês</div></div>'+
-    '<div class="kpi des"><div class="l">Extraordinário</div><div class="v serif">'+BRL(xrec)+'</div><div class="h">o que se repete, por mês</div></div>'+
-    '<div class="kpi '+(folga>=0?'rec':'des')+'"><div class="l">Folga de verdade</div><div class="v serif">'+BRL(folga)+'</div><div class="h">margem menos extraordinário</div></div>'+
-   '</div>'+
-   '<div class="callout '+(folga>0?'ok':'')+'" style="margin-top:12px">'+
-     (folga>0
-       ? 'A renda que entra <b>todo mês</b> cobre a vida de vocês <b>e</b> o gasto que se repete sem ser rotina, com <b>'+BRL(folga)+'</b> sobrando. Essa folga é o que pode virar aluguel.'
-       : 'A renda que entra todo mês ainda não cobre a vida mais o extraordinário: faltam <b>'+BRL(-folga)+'</b>. Quem tapa esse buraco hoje é a participação nos lucros.')+
-   '</div>'+
-   '<div class="note" style="margin-top:10px">Fora dessa conta fica o <b>evento pontual</b> — '+BRL(xpont)+'/mês em média, de coisas que apareceram em menos de três meses e por isso não entram na média de rotina. Saiu da média, não da conta bancária. A reserva de <b>'+BRL(reserva)+'</b> cobre <b>'+umaCasa(mesesRes)+' meses</b> de custo de vida.</div>';
-
-  var nums=el('anEstudoNums');
-  if(nums) nums.innerHTML=
-    '<span><b>'+BRL(custo)+'</b> de custo de vida</span>'+
-    '<span><b>'+BRL(margem)+'</b> de margem por mês</span>'+
-    '<span><b>'+umaCasa(mesesRes)+' meses</b> de reserva</span>';
-
-  renderAnAluguel_(rendaRec, CV);
+  renderAnTexto_(anMes);
+  renderAnHistorico_();
+  renderAnAluguel_(D.kpi.rendaRecorrente || D.kpi.renda, CV);
   renderAnCartao_();
   renderAnExtra_(CV);
+}
 
-  var n=el('analisesNota');
-  if(n) n.innerHTML='Os números desta aba saem da base na hora em que você abre o painel. O estudo escrito congela a leitura do dia em que foi publicado — se os dois discordarem, esta aba está mais atual.';
+/* ---------- o que cada mes gastou, por subcategoria ---------- */
+function anPorMes_(){
+  if(anPorMes_._c) return anPorMes_._c;
+  var o={};
+  (D.lanc||[]).forEach(function(r){
+    if(r[LC.FLAG]!=='GASTO') return;
+    var m=r[LC.MES], s=r[LC.SUB]||'(sem subcategoria)';
+    o[m]=o[m]||{total:0,n:0,subs:{},cart:0};
+    o[m].total+=r[LC.VALOR]; o[m].n++;
+    o[m].subs[s]=(o[m].subs[s]||0)+r[LC.VALOR];
+    if(!ehContaBancaria_(r)) o[m].cart+=r[LC.VALOR];
+  });
+  return (anPorMes_._c=o);
+}
+
+/* o que saiu do normal: gastou pelo menos o dobro do que costuma gastar e
+   passou de 200 reais, ou nunca tinha aparecido. Sem os dois filtros a lista
+   enche de linha de 30 reais que dobrou e nao quer dizer nada. */
+function anForaDaCurva_(mes){
+  var P=anPorMes_(), doMes=P[mes]; if(!doMes) return [];
+  var fora=[];
+  Object.keys(doMes.subs).forEach(function(s){
+    var v=doMes.subs[s];
+    if(v<200) return;
+    var hist=[];
+    Object.keys(P).forEach(function(m){ if(m!==mes && P[m].subs[s]) hist.push(P[m].subs[s]); });
+    var med = hist.length ? hist.reduce(function(a,b){return a+b;},0)/hist.length : 0;
+    if(!hist.length) fora.push({sub:s, valor:v, media:0, novo:true});
+    else if(v >= med*2) fora.push({sub:s, valor:v, media:med, novo:false});
+  });
+  fora.sort(function(a,b){ return (b.valor-b.media)-(a.valor-a.media); });
+  return fora;
+}
+
+function anPosicao_(mes){
+  var P=anPorMes_();
+  var lista=Object.keys(P).map(function(m){ return [m,P[m].total]; })
+                 .sort(function(a,b){ return b[1]-a[1]; });
+  var i=lista.map(function(x){return x[0];}).indexOf(mes);
+  return {posicao:i+1, de:lista.length};
+}
+
+/* ---------- a escrita do mes ---------- */
+function renderAnTexto_(mes){
+  var box=el('anTexto'); if(!box) return;
+  var P=anPorMes_(), M=P[mes];
+  if(!M){ box.innerHTML='<div class="note">Sem gastos lançados em '+esc_(mes)+'.</div>'; return; }
+
+  var fora=anForaDaCurva_(mes);
+  var excedente=0; fora.forEach(function(f){ excedente += f.valor - f.media; });
+  var normal=M.total-excedente;
+
+  var todos=Object.keys(P);
+  var mediaGeral=0; todos.forEach(function(m){ mediaGeral+=P[m].total; });
+  mediaGeral = mediaGeral/(todos.length||1);
+  var pos=anPosicao_(mes);
+  var iMes=(MESES||[]).indexOf(mes);
+  var ant = iMes>0 ? (MESES||[])[iMes-1] : null;
+  var pctCart = M.total>0 ? M.cart/M.total*100 : 0;
+
+  var evs=(D.eventos||[]).filter(function(e){ return e.mes===mesISOde_(mes); });
+
+  /* ---- a frase de abertura ---- */
+  var rank = pos.posicao===1 ? 'o mês mais caro que a base registra'
+           : pos.posicao===pos.de ? 'o mês mais barato que a base registra'
+           : 'o '+pos.posicao+'º mais caro de '+pos.de+' meses';
+  var lede = 'Custou <b>'+BRL(M.total)+'</b> em '+M.n+' lançamentos — '+rank+'. ';
+  if(excedente > M.total*0.12){
+    lede += 'Mas <b>'+BRL(excedente)+'</b> disso foi coisa fora do padrão. Tirando ela, o mês custou <b>'+BRL(normal)+'</b>';
+    lede += normal < mediaGeral ? ', <b>abaixo</b> da média de '+BRL(mediaGeral)+'.' : ', contra uma média de '+BRL(mediaGeral)+'.';
+  } else {
+    lede += M.total < mediaGeral
+      ? 'Nada fugiu muito do padrão, e o total ficou <b>abaixo</b> da média de '+BRL(mediaGeral)+'.'
+      : 'Nada fugiu muito do padrão — o mês foi caro no conjunto, não em um item só.';
+  }
+
+  var h='';
+  h+='<p class="an-eyebrow">Karol &amp; Vinícius · a leitura do mês</p>';
+  h+='<h2 class="an-h1">'+esc_(anMesLongo_(mes))+' de 2026</h2>';
+  h+='<p class="an-lede">'+lede+'</p>';
+
+  h+='<div class="kpis" style="margin-top:18px">'+
+      '<div class="kpi wt"><div class="l">Gasto do mês</div><div class="v serif">'+BRL(M.total)+'</div><div class="h">'+M.n+' lançamentos</div></div>'+
+      '<div class="kpi '+(excedente>0?'des':'wt')+'"><div class="l">Fora do padrão</div><div class="v serif">'+BRL(excedente)+'</div><div class="h">acima do que costuma custar</div></div>'+
+      '<div class="kpi rec"><div class="l">O mês sem isso</div><div class="v serif">'+BRL(normal)+'</div><div class="h">o ritmo de sempre</div></div>'+
+      '<div class="kpi '+(pctCart<40?'rec':'des')+'"><div class="l">No cartão</div><div class="v serif">'+Math.round(pctCart)+'%</div><div class="h">o resto saiu pela conta</div></div>'+
+     '</div>';
+
+  /* ---- o que aconteceu ---- */
+  if(evs.length){
+    h+='<h3 class="an-h3">O que aconteceu</h3>';
+    h+='<div class="an-destaque">'+evs.map(function(e){
+      return '<div class="an-ev"><span class="an-ev-d">'+(e.dia?'dia '+esc_(e.dia):'&mdash;')+'</span>'+
+             '<span class="an-ev-t">'+esc_(e.oque)+'</span>'+
+             '<span class="an-ev-q">'+esc_(e.quem||'')+'</span></div>';
+    }).join('')+'</div>';
+  } else {
+    h+='<div class="an-nota"><div class="t">Nenhum evento anotado</div>'+
+       '<p>Escreva na aba <b>Eventos</b> da planilha — aniversário, viagem, cachorro doente. '+
+       'O número diz quanto; isso diz por quê, e é a única coisa que os lançamentos não contam sozinhos.</p></div>';
+  }
+
+  /* ---- o que saiu do normal ---- */
+  if(fora.length){
+    h+='<h3 class="an-h3">O que saiu do normal</h3>';
+    h+='<div class="ledger">'+fora.slice(0,8).map(function(f){
+      var det = f.novo ? 'primeira vez que aparece' : 'costuma ser '+BRL(f.media);
+      return '<div class="lrow"><span class="lbl">'+esc_(f.sub)+
+             ' <span style="color:var(--ink-3);font-size:12px">— '+det+'</span></span>'+
+             '<span class="val neg">'+BRL(f.valor)+'</span></div>';
+    }).join('')+
+    '<div class="lrow total"><span class="lbl">Acima do normal</span><span class="val neg">'+BRL(excedente)+'</span></div></div>';
+    h+='<p class="an-p">Estes são os valores <b>que saíram de verdade neste mês</b> — não a média diluída. '+
+       'É a conta que responde “por que este mês foi diferente”.</p>';
+  } else {
+    h+='<div class="an-nota"><div class="t">Mês comportado</div><p>Nenhuma categoria fugiu do padrão em '+esc_(mes)+'.</p></div>';
+  }
+
+  /* ---- fecho ---- */
+  if(ant && P[ant]){
+    var dif=M.total-P[ant].total;
+    h+='<p class="an-p">Contra '+esc_(ant)+', que custou '+BRL(P[ant].total)+', '+esc_(mes)+' ficou '+
+       '<b class="'+(dif>0?'neg':'pos')+'">'+(dif>0?'R$ '+Math.round(Math.abs(dif)).toLocaleString('pt-BR')+' mais caro':'R$ '+Math.round(Math.abs(dif)).toLocaleString('pt-BR')+' mais barato')+'</b>.</p>';
+  }
+
+  box.innerHTML=h;
+}
+
+/* ---------- histórico: todos os meses, do mais novo pro mais antigo ---------- */
+function renderAnHistorico_(){
+  var box=el('anHist'); if(!box) return;
+  var P=anPorMes_();
+  var ms=(MESES||[]).filter(function(m){ return P[m]; }).slice().reverse();
+  var mediaGeral=0; ms.forEach(function(m){ mediaGeral+=P[m].total; }); mediaGeral/= (ms.length||1);
+  var mx=Math.max.apply(null, ms.map(function(m){ return P[m].total; }).concat([1]));
+
+  box.innerHTML = ms.map(function(m){
+    var v=P[m].total, dif=v-mediaGeral;
+    var evs=(D.eventos||[]).filter(function(e){ return e.mes===mesISOde_(m); });
+    var resumo = evs.length
+      ? evs.map(function(e){ return esc_(e.oque); }).join(' · ')
+      : (anForaDaCurva_(m).slice(0,2).map(function(f){ return esc_(f.sub); }).join(' · ') || 'mês sem sobressalto');
+    return '<div class="an-hist'+(m===anMes?' on':'')+'" data-m="'+esc_(m)+'">'+
+      '<div class="an-hist-top">'+
+        '<span class="an-hist-m">'+esc_(m)+'</span>'+
+        '<span class="an-hist-v">'+BRL(v)+'</span>'+
+      '</div>'+
+      '<div class="an-hist-bar"><i style="width:'+(v/mx*100)+'%;background:'+(dif>0?'var(--coral)':'var(--teal)')+'"></i></div>'+
+      '<div class="an-hist-r">'+resumo+'</div></div>';
+  }).join('');
+
+  [].forEach.call(box.querySelectorAll('.an-hist'), function(b){
+    b.onclick=function(){ anMes=b.dataset.m; renderAnalises();
+      if(el('anTexto')) el('anTexto').scrollIntoView({behavior:'smooth',block:'start'}); };
+  });
+
+  var cap=el('anHistCap');
+  if(cap) cap.innerHTML='Cada mês com o que aconteceu nele. Barra vermelha é mês acima da média de '+BRL(mediaGeral)+
+    ', verde é abaixo. Clique para ler o mês.';
+}
+
+/* 'Set' -> 'Setembro', so pro titulo nao ficar abreviado */
+function anMesLongo_(rot){
+  var L={'Jan':'Janeiro','Fev':'Fevereiro','Mar':'Março','Abr':'Abril','Mai':'Maio','Jun':'Junho',
+         'Jul':'Julho','Ago':'Agosto','Set':'Setembro','Out':'Outubro','Nov':'Novembro','Dez':'Dezembro'};
+  return L[rot]||rot;
+}
+
+/* 'Set' -> '2026-09', que e como a aba Eventos guarda */
+function mesISOde_(rot){
+  var MN={'Jan':'01','Fev':'02','Mar':'03','Abr':'04','Mai':'05','Jun':'06',
+          'Jul':'07','Ago':'08','Set':'09','Out':'10','Nov':'11','Dez':'12'};
+  return MN[rot] ? '2026-'+MN[rot] : rot;
 }
 
 /* ---------- ALUGUEL: em que mes a conta vira ----------
-   Em vez de uma tabela de 28 linhas, agrupo os meses em que a margem e a
-   mesma. A margem so muda quando uma parcela de divida acaba ou a faculdade
-   termina - sao esses os degraus que interessam pra decidir quando sair. */
+   Agrupo os meses em que a margem e a mesma: ela so muda quando uma parcela
+   de divida acaba ou a faculdade termina, e sao esses os degraus que
+   interessam pra decidir quando sair de casa. */
 function renderAnAluguel_(rendaRec, CV){
   var box=el('anAlu'); if(!box) return;
   var divs=D.dividas||[];
   var fimFac=(D.agenda&&D.agenda.fimFaculdade)||'2027-12';
   var facMes=(D.agenda&&D.agenda.faculdadeMes)||0;
   var fAno=parseInt(fimFac.slice(0,4),10), fMes=parseInt(fimFac.slice(5,7),10);
-
-  /* segue o slider da aba Projecao se ele existir, pra as duas abas nao
-     discordarem sobre quanto custa o aluguel */
   var sl=el('pAlu');
   var ALU = (sl && +sl.value) ? +sl.value : 2700;
 
@@ -842,23 +1002,17 @@ function renderAnAluguel_(rendaRec, CV){
 /* ---------- CARTAO x CONTA, mes a mes ---------- */
 function renderAnCartao_(){
   var box=el('anCartao'); if(!box) return;
-  var por={};
-  (D.lanc||[]).forEach(function(r){
-    if(r[LC.FLAG]!=='GASTO') return;
-    var m=r[LC.MES]; por[m]=por[m]||{c:0,p:0};
-    if(!ehContaBancaria_(r)) por[m].c+=r[LC.VALOR]; else por[m].p+=r[LC.VALOR];
-  });
-  var ms=(MESES||[]).filter(function(m){ return por[m] && (por[m].c+por[m].p)>0; });
+  var P=anPorMes_();
+  var ms=(MESES||[]).filter(function(m){ return P[m] && P[m].total>0; });
   if(!ms.length){ box.innerHTML='<div class="note">Sem lançamentos suficientes.</div>'; return; }
 
   var somaC=0, somaT=0;
-  ms.forEach(function(m){ somaC+=por[m].c; somaT+=por[m].c+por[m].p; });
+  ms.forEach(function(m){ somaC+=P[m].cart; somaT+=P[m].total; });
   var pctAno = somaT>0 ? somaC/somaT*100 : 0;
-  var ult=por[ms[ms.length-1]], pctUlt=(ult.c+ult.p)>0 ? ult.c/(ult.c+ult.p)*100 : 0;
 
   box.innerHTML = ms.map(function(m){
-    var o=por[m], t=o.c+o.p, pc=t>0?o.c/t*100:0;
-    var dest=(m===ms[ms.length-1]);
+    var o=P[m], pc=o.total>0?o.cart/o.total*100:0;
+    var dest=(m===anMes);
     return '<div class="row">'+
       '<div class="nm" style="width:46px'+(dest?';color:var(--teal);font-weight:600':'')+'">'+m+'</div>'+
       '<div class="bar" style="display:flex;background:var(--surface-2)">'+
@@ -873,33 +1027,62 @@ function renderAnCartao_(){
 
   var cap=el('anCartaoCap');
   if(cap) cap.innerHTML='Quanto do gasto de cada mês passou no cartão. O problema do cartão não é ele em si: é que ele separa a hora de gastar da hora de pagar. '
-    +'Na média do período são <b>'+Math.round(pctAno)+'%</b>; no último mês, <b>'+Math.round(pctUlt)+'%</b>. '
-    +'O mês corrente ainda sobe depois — as compras da fatura em aberto só entram na base quando ela fechar.';
+    +'Na média do período são <b>'+Math.round(pctAno)+'%</b>. '
+    +'O mês corrente ainda sobe depois — as compras da fatura em aberto só entram quando ela fechar.';
 }
 
-/* ---------- EXTRAORDINARIO: o que se repete e o que foi evento ---------- */
+/* ---------- EXTRAORDINARIO ----------
+   A coluna da direita mostrava a media diluida: os 1.143 do veterinario
+   divididos por 15 meses viravam 84, um numero que ninguem reconhece. Agora
+   ela mostra o que saiu DE VERDADE, e a media fica como nota de rodape. */
 function renderAnExtra_(CV){
   var box=el('anExtra'); if(!box) return;
   var ord=function(o){ return Object.keys(o||{}).map(function(k){ return [k,o[k]]; })
       .sort(function(x,y){ return y[1]-x[1]; }); };
   var rec=ord(CV.extraDet), pon=ord(CV.extraFora);
-  var linhas=function(l){
+
+  /* quanto cada subcategoria custou de verdade, e quando */
+  var real={}, quando={};
+  (D.lanc||[]).forEach(function(r){
+    if(r[LC.FLAG]!=='GASTO') return;
+    var s=r[LC.SUB];
+    real[s]=(real[s]||0)+r[LC.VALOR];
+    (quando[s]=quando[s]||{})[r[LC.MES]]=1;
+  });
+
+  var linhasRec=function(l){
     if(!l.length) return '<div class="lrow"><span class="lbl">nada por aqui</span><span class="val">—</span></div>';
     return l.slice(0,8).map(function(x){
-      return '<div class="lrow"><span class="lbl">'+esc_(x[0])+'</span><span class="val">'+BRL(x[1])+'</span></div>'; }).join('');
+      return '<div class="lrow"><span class="lbl">'+esc_(x[0])+'</span><span class="val">'+BRL(x[1])+'</span></div>';
+    }).join('');
+  };
+  var linhasPon=function(l){
+    if(!l.length) return '<div class="lrow"><span class="lbl">nada por aqui</span><span class="val">—</span></div>';
+    return l.slice(0,8).map(function(x){
+      var tot=real[x[0]]||0;
+      var ms=Object.keys(quando[x[0]]||{});
+      return '<div class="lrow"><span class="lbl">'+esc_(x[0])+
+             ' <span style="color:var(--ink-3);font-size:12px">— '+(ms.length?ms.join(', '):'')+'</span></span>'+
+             '<span class="val neg">'+BRL(tot)+'</span></div>';
+    }).join('');
   };
 
   box.innerHTML=
-   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">'+
-     '<div><h3 style="font-size:14px;margin:0 0 6px">Se repete — entra na conta</h3><div class="ledger">'+
-       linhas(rec)+'<div class="lrow total"><span class="lbl">Por mês</span><span class="val">'+BRL(CV.extra||0)+'</span></div></div></div>'+
-     '<div><h3 style="font-size:14px;margin:0 0 6px">Foi evento — fora da média</h3><div class="ledger">'+
-       linhas(pon)+'<div class="lrow total"><span class="lbl">Por mês</span><span class="val">'+BRL(CV.extraPontual||0)+'</span></div></div></div>'+
+   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">'+
+     '<div><h3 class="an-h3" style="margin-top:0">Se repete — entra na conta</h3>'+
+       '<p class="an-p" style="font-size:13px;margin:0 0 8px">Quanto cada uma custa <b>por mês</b>, na média. É a conta que a margem precisa cobrir.</p>'+
+       '<div class="ledger">'+linhasRec(rec)+
+       '<div class="lrow total"><span class="lbl">Por mês</span><span class="val">'+BRL(CV.extra||0)+'</span></div></div></div>'+
+     '<div><h3 class="an-h3" style="margin-top:0">Foi evento — fora da média</h3>'+
+       '<p class="an-p" style="font-size:13px;margin:0 0 8px">Quanto cada uma custou <b>de verdade</b>, e em que meses. Aconteceu, mas não é hábito.</p>'+
+       '<div class="ledger">'+linhasPon(pon)+
+       '<div class="lrow total"><span class="lbl">Diluído no ano</span><span class="val">'+BRL(CV.extraPontual||0)+'/mês</span></div></div></div>'+
    '</div>';
 
   var cap=el('anExtraCap');
   if(cap) cap.innerHTML='A regra é a que você pediu: uma linha só entra na média se apareceu em <b>três meses diferentes ou mais</b>. '
-    +'A da esquerda é a conta que a margem precisa cobrir todo mês. A da direita aconteceu de verdade, mas não é hábito — saiu da média, não da conta bancária.';
+    +'Repare que os dois lados respondem perguntas diferentes: o da esquerda é <b>quanto pesa todo mês</b>, o da direita é <b>quanto custou quando aconteceu</b>. '
+    +'Por isso o veterinário aparece pelo valor cheio, e não pela média que o dilui em quinze meses.';
 }
 
 /* ---------- FLUXO DE CAIXA ----------
