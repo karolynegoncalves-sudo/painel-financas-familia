@@ -12,7 +12,7 @@ let MESES=[];
 let filtroMes="Ano",aberta=null;
 
 // tabs
-const TABS=[["visao","Visão geral"],["fluxo","Fluxo de caixa"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["custo","Custo de vida"],["dividas","Dívidas"],["proj","Projeção 2027"],["patrim","Patrimônio"],["ano","O ano inteiro"],["analises","Análises & estratégias"]];
+const TABS=[["visao","Visão geral"],["fluxo","Fluxo de caixa"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["custo","Custo de vida"],["dividas","Dívidas"],["proj","Projeção 2027"],["patrim","Patrimônio"],["ano","DRE"],["analises","Análises & estratégias"]];
 el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="${t[0]}">${t[1]}</button>`).join("");
 [...document.querySelectorAll('.tab')].forEach(b=>b.onclick=()=>{
   [...document.querySelectorAll('.tab')].forEach(x=>x.classList.toggle('on',x===b));
@@ -736,7 +736,7 @@ function renderDividas(){
   }).join('');
 }
 
-/* ================= O ANO INTEIRO =================
+/* ================= DRE: O ANO MES A MES =========
    A Karol pediu a visao que faltava: todas as categorias em linha, os meses em
    coluna, o total do ano e as entradas - como uma planilha aberta.
 
