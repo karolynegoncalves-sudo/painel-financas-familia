@@ -265,3 +265,30 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 .an-hist-bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin:8px 0 7px}
 .an-hist-bar i{display:block;height:100%}
 .an-hist-r{font-size:11.5px;line-height:1.45;color:var(--ink-3)}
+
+/* aba O ano inteiro: a planilha aberta */
+.ano-acoes{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+.ano-wrap{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:10px}
+table.ano{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%}
+table.ano th,table.ano td{padding:7px 10px;white-space:nowrap;border-bottom:1px solid var(--line)}
+table.ano thead th{position:sticky;top:0;z-index:3;background:var(--surface-2);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line)}
+.ano-nome{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;min-width:210px}
+table.ano thead .ano-nome{z-index:4;background:var(--surface-2)}
+.ano-n{text-align:right;font-variant-numeric:tabular-nums}
+.ano-zero{color:var(--ink-3)}
+.ano-tot{font-weight:700;background:var(--surface-2)}
+.ano-med{color:var(--ink-2)}
+.ano-sec td{background:var(--ink);color:#fff;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.ano-sec .ano-nome{background:var(--ink);color:#fff}
+.ano-macro{cursor:pointer;font-weight:600}
+.ano-macro:hover .ano-nome{color:var(--teal)}
+.ano-cx{display:inline-block;width:14px;color:var(--teal);font-weight:700}
+.ano-ind{display:inline-block;width:20px}
+.ano-sub .ano-nome{color:var(--ink-2);font-weight:400}
+.ano-sub td{font-size:12px}
+.ano-soma td{border-top:2px solid var(--line);font-weight:700;background:var(--surface-2)}
+.ano-soma .ano-nome{background:var(--surface-2)}
+.ano-pos td{color:var(--teal)}.ano-neg td{color:var(--coral)}
+.ano-v-pos{color:var(--teal)}.ano-v-neg{color:var(--coral)}
+.ano-sobra td{border-top:2px solid var(--ink)}
+@media(max-width:640px){.ano-nome{min-width:150px}table.ano th,table.ano td{padding:6px 7px;font-size:11.5px}}

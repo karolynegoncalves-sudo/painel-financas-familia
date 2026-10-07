@@ -12,7 +12,7 @@ let MESES=[];
 let filtroMes="Ano",aberta=null;
 
 // tabs
-const TABS=[["visao","Visão geral"],["fluxo","Fluxo de caixa"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["custo","Custo de vida"],["dividas","Dívidas"],["proj","Projeção 2027"],["patrim","Patrimônio"],["analises","Análises & estratégias"]];
+const TABS=[["visao","Visão geral"],["fluxo","Fluxo de caixa"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["custo","Custo de vida"],["dividas","Dívidas"],["proj","Projeção 2027"],["patrim","Patrimônio"],["ano","O ano inteiro"],["analises","Análises & estratégias"]];
 el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="${t[0]}">${t[1]}</button>`).join("");
 [...document.querySelectorAll('.tab')].forEach(b=>b.onclick=()=>{
   [...document.querySelectorAll('.tab')].forEach(x=>x.classList.toggle('on',x===b));
@@ -734,6 +734,169 @@ function renderDividas(){
       '<div style="background:var(--surface-2);border-radius:9px;padding:9px 11px"><div style="font-size:11px;color:var(--ink-2)">Parcelas pagas</div><div class="serif" style="font-size:17px">'+d.pagas+'/'+d.nparc+'</div></div>'+
     '</div></div>';
   }).join('');
+}
+
+/* ================= O ANO INTEIRO =================
+   A Karol pediu a visao que faltava: todas as categorias em linha, os meses em
+   coluna, o total do ano e as entradas - como uma planilha aberta.
+
+   Entra so RENDA e GASTO. Transferencia entre contas, pagamento de fatura e
+   dinheiro que foi pro cofrinho ficam de fora de proposito: nao sao nem renda
+   nem gasto, e somar isso dobraria o mesmo dinheiro. */
+
+var anoAbertas = {};      /* macros com as subcategorias abertas */
+var anoZoom    = true;    /* pintar as celulas por intensidade */
+
+function renderAno(){
+  var box = el('anoTab'); if(!box || !D.lanc) return;
+
+  var ms = (MESES||[]).slice();
+  if(!ms.length){ box.innerHTML='<div class="note">Sem meses na base.</div>'; return; }
+
+  /* ---- monta o quadro: entradas e saidas, por macro e por sub ---- */
+  var ent={}, sai={}, totEnt={}, totSai={};
+  ms.forEach(function(m){ totEnt[m]=0; totSai[m]=0; });
+
+  (D.lanc||[]).forEach(function(r){
+    var m=r[LC.MES]; if(ms.indexOf(m)<0) return;
+    var fl=r[LC.FLAG];
+    if(fl!=='RENDA' && fl!=='GASTO') return;
+    var alvo = fl==='RENDA' ? ent : sai;
+    var ma=r[LC.MACRO]||'(sem categoria)', su=r[LC.SUB]||'(sem subcategoria)';
+    alvo[ma]=alvo[ma]||{tot:{},subs:{}};
+    alvo[ma].tot[m]=(alvo[ma].tot[m]||0)+r[LC.VALOR];
+    alvo[ma].subs[su]=alvo[ma].subs[su]||{};
+    alvo[ma].subs[su][m]=(alvo[ma].subs[su][m]||0)+r[LC.VALOR];
+    if(fl==='RENDA') totEnt[m]+=r[LC.VALOR]; else totSai[m]+=r[LC.VALOR];
+  });
+
+  var somaLinha=function(o){ var s=0; ms.forEach(function(m){ s+=o[m]||0; }); return s; };
+  var ordena=function(grupo){
+    return Object.keys(grupo).sort(function(a,b){ return somaLinha(grupo[b].tot)-somaLinha(grupo[a].tot); });
+  };
+
+  /* quantos meses tem movimento, pra media nao dividir por mes vazio */
+  var nEnt=0, nSai=0;
+  ms.forEach(function(m){ if(totEnt[m]) nEnt++; if(totSai[m]) nSai++; });
+
+  /* ---- cabecalho ---- */
+  var th = '<tr><th class="ano-nome">Categoria</th>'
+         + ms.map(function(m){ return '<th class="ano-n">'+esc_(m)+'</th>'; }).join('')
+         + '<th class="ano-n ano-tot">Total</th><th class="ano-n">Média</th></tr>';
+
+  /* ---- uma linha ---- */
+  var linha=function(nome, valores, classe, nMeses, extra){
+    var tot=somaLinha(valores);
+    var mx=0; ms.forEach(function(m){ if((valores[m]||0)>mx) mx=valores[m]||0; });
+    var cels = ms.map(function(m){
+      var v=valores[m]||0;
+      var bg='';
+      if(anoZoom && v>0 && mx>0 && classe.indexOf('ano-macro')<0 && classe.indexOf('ano-soma')<0){
+        var a=(v/mx)*0.22;
+        bg=' style="background:rgba(216,73,47,'+a.toFixed(3)+')"';
+      }
+      return '<td class="ano-n"'+bg+'>'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
+    }).join('');
+    return '<tr class="'+classe+'"'+(extra||'')+'>'
+      + '<td class="ano-nome">'+nome+'</td>' + cels
+      + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
+      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
+  };
+
+  var corpo='';
+
+  /* ---- ENTRADAS ---- */
+  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+3)+'">Entradas</td></tr>';
+  ordena(ent).forEach(function(ma){
+    var g=ent[ma], aberto=!!anoAbertas['E:'+ma];
+    corpo += linha('<span class="ano-cx">'+(aberto?'–':'+')+'</span> '+esc_(ma),
+                   g.tot, 'ano-macro ano-clk', nEnt, ' data-k="E:'+esc_(ma)+'"');
+    if(aberto){
+      Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
+        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nEnt); });
+    }
+  });
+  corpo += linha('<b>Total que entrou</b>', totEnt, 'ano-soma ano-pos', nEnt);
+
+  /* ---- SAIDAS ---- */
+  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+3)+'">Saídas</td></tr>';
+  ordena(sai).forEach(function(ma){
+    var g=sai[ma], aberto=!!anoAbertas['S:'+ma];
+    corpo += linha('<span class="ano-cx">'+(aberto?'–':'+')+'</span> '+esc_(ma),
+                   g.tot, 'ano-macro ano-clk', nSai, ' data-k="S:'+esc_(ma)+'"');
+    if(aberto){
+      Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
+        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nSai); });
+    }
+  });
+  corpo += linha('<b>Total que saiu</b>', totSai, 'ano-soma ano-neg', nSai);
+
+  /* ---- SOBRA ---- */
+  var sobra={}; ms.forEach(function(m){ sobra[m]=(totEnt[m]||0)-(totSai[m]||0); });
+  var totSobra=somaLinha(sobra);
+  var celsS = ms.map(function(m){
+    var v=sobra[m]||0;
+    return '<td class="ano-n '+(v>=0?'ano-v-pos':'ano-v-neg')+'">'+(v?anoNum_(v):'—')+'</td>';
+  }).join('');
+  corpo += '<tr class="ano-soma ano-sobra"><td class="ano-nome"><b>Sobrou</b></td>'+celsS
+    + '<td class="ano-n ano-tot '+(totSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+anoNum_(totSobra)+'</td>'
+    + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td></tr>';
+
+  box.innerHTML = '<div class="ano-wrap"><table class="ano"><thead>'+th+'</thead><tbody>'+corpo+'</tbody></table></div>';
+
+  [].forEach.call(box.querySelectorAll('.ano-clk'), function(tr){
+    tr.onclick=function(){ var k=tr.dataset.k; anoAbertas[k]=!anoAbertas[k]; renderAno(); };
+  });
+
+  var cap=el('anoCap');
+  if(cap) cap.innerHTML='Todas as categorias em linha, os meses em coluna — a planilha que faltava. '
+    +'<b>Clique na categoria</b> para abrir as subcategorias. A coluna <b>Média</b> divide só pelos meses que tiveram movimento, '
+    +'não por doze. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: '
+    +'não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
+
+  var ex=el('anoCsv');
+  if(ex) ex.onclick=function(){ anoBaixaCsv_(ms, ent, sai, totEnt, totSai, sobra); };
+  var zm=el('anoZoom');
+  if(zm){ zm.textContent = anoZoom ? 'Tirar as cores' : 'Pintar por intensidade';
+          zm.onclick=function(){ anoZoom=!anoZoom; renderAno(); }; }
+}
+
+/* numero curto: a tabela tem uma coluna por mes, 'R$' em todas nao cabe */
+function anoNum_(v){
+  var neg = v<0;
+  var s = Math.round(Math.abs(v)).toLocaleString('pt-BR');
+  return neg ? '-'+s : s;
+}
+
+/* CSV com ; e virgula decimal, que e o que o Excel brasileiro abre direto */
+function anoBaixaCsv_(ms, ent, sai, totEnt, totSai, sobra){
+  var L=[], q=function(s){ return '"'+String(s).replace(/"/g,'""')+'"'; };
+  var br=function(v){ return String((Math.round(v*100)/100).toFixed(2)).replace('.',','); };
+  var soma=function(o){ var s=0; ms.forEach(function(m){ s+=o[m]||0; }); return s; };
+  var lin=function(nome,o){ return [q(nome)].concat(ms.map(function(m){ return br(o[m]||0); })).concat([br(soma(o))]).join(';'); };
+
+  L.push([q('Categoria')].concat(ms.map(q)).concat([q('Total')]).join(';'));
+  L.push(q('ENTRADAS'));
+  Object.keys(ent).forEach(function(ma){
+    L.push(lin(ma, ent[ma].tot));
+    Object.keys(ent[ma].subs).forEach(function(su){ L.push(lin('   '+su, ent[ma].subs[su])); });
+  });
+  L.push(lin('TOTAL QUE ENTROU', totEnt));
+  L.push(q('SAIDAS'));
+  Object.keys(sai).forEach(function(ma){
+    L.push(lin(ma, sai[ma].tot));
+    Object.keys(sai[ma].subs).forEach(function(su){ L.push(lin('   '+su, sai[ma].subs[su])); });
+  });
+  L.push(lin('TOTAL QUE SAIU', totSai));
+  L.push(lin('SOBROU', sobra));
+
+  /* BOM pro Excel nao comer os acentos */
+  var blob = new Blob(['﻿'+L.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'financas-ano-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 0);
 }
 
 /* ================= ANALISES =================
@@ -1750,7 +1913,7 @@ function lancDoMacro(macro){
   abrirLanc(macro, function(r){ return r[LC.MACRO]===macro; }, 'categoria inteira');
 }
 
-function renderAll(){setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAnalises();}
+function renderAll(){setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAno();renderAnalises();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
