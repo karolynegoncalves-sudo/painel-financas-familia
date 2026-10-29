@@ -116,17 +116,37 @@ function drawSaldoContas(){
     BAN.map(function(b){return '<div class="row"><div class="nm"><i class="dot" style="background:'+b[2]+'"></i>'+b[0]+'</div><div class="bar"><i style="width:'+Math.max(b[1]/mx*100,2)+'%;background:'+b[2]+'"></i></div><div class="vl num">'+BRL(b[1])+'</div></div>';}).join('')+
     '<div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><div class="nm" style="font-weight:500">Total</div><div class="bar" style="background:none"></div><div class="vl num" style="font-weight:500">'+BRL(tot)+'</div></div>';
 }
+/* Receita e barra, despesa e linha.
+   Duas barras lado a lado obrigam a comparar altura de coisas separadas por
+   um vao; com a despesa virando linha, ela passa POR DENTRO da barra e da
+   pra ver num relance se o mes comeu o que entrou. A sobra continua embaixo,
+   e as duas linhas se cruzam exatamente onde o mes vira negativo. */
 function drawCombo(){
   const W=640,H=230,pad=32,n=MESES.length,gw=(W-pad*2)/n;
   const mx=Math.max(...MESES.flatMap(m=>[D.mensal[m].receita,D.mensal[m].despesa]));
-  const y=v=>H-pad-(v/mx)*(H-pad*2);let s=`<svg viewBox="0 0 ${W} ${H}">`;
-  for(let i=0;i<4;i++){const gy=pad+i*(H-pad*2)/3;s+=`<line x1="${pad}" y1="${gy}" x2="${W-pad}" y2="${gy}" stroke="var(--line)"/><text x="2" y="${gy+3}" font-size="9" fill="var(--ink-3)">${Math.round(mx*(1-i/3)/1000)}k</text>`;}
-  const bw=gw*.28;
-  MESES.forEach((m,i)=>{const cx=pad+gw*i+gw/2,d=D.mensal[m];
-    s+=`<rect x="${cx-bw-2}" y="${y(d.receita)}" width="${bw}" height="${H-pad-y(d.receita)}" rx="2.5" fill="var(--teal)"/><rect x="${cx+2}" y="${y(d.despesa)}" width="${bw}" height="${H-pad-y(d.despesa)}" rx="2.5" fill="var(--coral)"/><text x="${cx}" y="${H-pad+13}" font-size="11" fill="var(--ink-2)" text-anchor="middle">${m}</text>`;});
-  const pts=MESES.map((m,i)=>[pad+gw*i+gw/2,y(D.mensal[m].saldo)]);
-  s+=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--amber)" stroke-width="2.5"/>`;
-  pts.forEach(p=>s+=`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="var(--amber)" stroke="var(--surface)" stroke-width="1.5"/>`);
+  const y=v=>H-pad-(v/mx)*(H-pad*2);
+  let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  for(let i=0;i<4;i++){
+    const gy=pad+i*(H-pad*2)/3;
+    s+=`<line x1="${pad}" y1="${gy}" x2="${W-pad}" y2="${gy}" stroke="var(--line)"/>`
+     + `<text x="2" y="${gy+3}" font-size="9" fill="var(--ink-3)">${Math.round(mx*(1-i/3)/1000)}k</text>`;
+  }
+  /* a barra fica mais larga agora que e uma so, e centrada no mes */
+  const bw=gw*.46;
+  MESES.forEach((m,i)=>{
+    const cx=pad+gw*i+gw/2,d=D.mensal[m];
+    s+=`<rect x="${cx-bw/2}" y="${y(d.receita)}" width="${bw}" height="${H-pad-y(d.receita)}" rx="2.5" fill="var(--teal)"/>`
+     + `<text x="${cx}" y="${H-pad+13}" font-size="11" fill="var(--ink-2)" text-anchor="middle">${m}</text>`;
+  });
+  /* as linhas vem depois das barras pra desenhar por cima delas */
+  const linha=(campo,cor)=>{
+    const pts=MESES.map((m,i)=>[pad+gw*i+gw/2,y(D.mensal[m][campo])]);
+    let o=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${cor}" stroke-width="2.5"/>`;
+    pts.forEach(p=>o+=`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${cor}" stroke="var(--surface)" stroke-width="1.5"/>`);
+    return o;
+  };
+  s+=linha('despesa','var(--coral)');
+  s+=linha('saldo','var(--amber)');
   el("combo").innerHTML=s+`</svg>`;
 }
 function drawDonut(cat){
