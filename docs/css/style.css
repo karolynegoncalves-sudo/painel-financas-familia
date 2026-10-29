@@ -303,3 +303,10 @@ table.ano thead .ano-nome{z-index:4;background:var(--surface-2)}
 .cbo-tip em{margin-left:auto;font-style:normal;font-weight:600;color:var(--ink);
   font-variant-numeric:tabular-nums}
 .cbo-tip em.neg{color:var(--coral)} .cbo-tip em.pos{color:var(--teal)}
+
+/* coluna Planejado da DRE. O campo tem que parecer celula de planilha, nao
+   formulario: sem borda ate encostar nele. */
+.ano-plan{background:var(--surface-2)}
+.ano-plan-calc{color:var(--ink-2);font-style:italic}
+table.ano thead .ano-plan{background:var(--ink)}
+.ano-estourou .ano-tot{color:var(--coral)}

@@ -272,11 +272,17 @@ function renderPessoa(){
   }else{
     const subs=Object.entries((p3subAtual()[selP]||{})[p3Aberta]||{});
     pieSVG('p3pie',subs,(k,i)=>SUBPAL[i%SUBPAL.length]);
-    el('p3bars').innerHTML=barsHTML(subs,(k,i)=>SUBPAL[i%SUBPAL.length],false)+
+    /* aqui as linhas nao abriam nada: em Categorias clicar numa subcategoria
+       mostra os lancamentos, e aqui nao mostrava. Mesmo gesto, mesmo
+       resultado - so que filtrado tambem pela pessoa. */
+    el('p3bars').innerHTML=barsHTML(subs,(k,i)=>SUBPAL[i%SUBPAL.length],true)+
       `<button class="chip" id="p3BackBtn" style="margin-top:12px">← voltar às categorias</button>`;
+    [...el('p3bars').querySelectorAll('.row')].forEach(r=>r.onclick=()=>{
+      lancDaSubPessoa(selP, p3Aberta, r.dataset.k);
+    });
     el('p3BackBtn').onclick=()=>{p3Aberta=null;renderPessoa();};
     el('p3title').textContent=selP+' · '+p3Aberta+' → subcategorias';
-    el('p3cap').textContent='Detalhe de '+p3Aberta+' em '+selP+'.';
+    el('p3cap').textContent='Detalhe de '+p3Aberta+' em '+selP+'. Clique numa subcategoria pra ver os lançamentos.';
   }
 }
 
@@ -796,6 +802,59 @@ function renderDividas(){
   }).join('');
 }
 
+/* ---------- PLANEJADO (a coluna que ela digita) ----------
+   Fica na aba Plano da planilha, nao no navegador: ela abre o painel no
+   celular e no computador, e plano que some ao trocar de aparelho nao e
+   plano, e rascunho.
+
+   Regra da soma, pra nao contar o mesmo dinheiro duas vezes: se ela digitou
+   em alguma subcategoria, a categoria passa a valer a SOMA das suas subs e
+   deixa de aceitar digitacao. Se nao digitou em nenhuma, vale o que ela puser
+   na propria categoria. O total da secao soma so as categorias. */
+
+var planoPend = {};   /* o que ainda nao confirmou gravacao */
+var planoMapa = null;
+
+function planoMapa_(){
+  if(planoMapa) return planoMapa;
+  planoMapa = {};
+  (D.plano||[]).forEach(function(r){ planoMapa[String(r[0])] = +r[2] || 0; });
+  return planoMapa;
+}
+function planoKey_(tipo, macro, sub){
+  return 'DRE|' + tipo + '|' + macro + '|' + (sub || '');
+}
+function planoGet_(k){
+  if(planoPend.hasOwnProperty(k)) return planoPend[k];
+  return planoMapa_()[k] || 0;
+}
+function planoNum_(t){
+  t = String(t || '').replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  var v = parseFloat(t);
+  return isNaN(v) ? 0 : v;
+}
+async function planoGrava_(k, v, campo){
+  planoPend[k] = v;
+  campo.classList.remove('plan-erro', 'plan-ok');
+  campo.classList.add('plan-salvando');
+  var params = { acao: 'plano', token: idToken, chave: k, mes: 'ANO', valor: String(v) };
+  var qs = Object.keys(params).map(function(x){ return x + '=' + encodeURIComponent(params[x]); }).join('&');
+  var r;
+  try {
+    var resp = await fetch(CFG.APPS_SCRIPT_URL + '?' + qs + '&_=' + Date.now(), { cache: 'no-store' });
+    r = await resp.json();
+  } catch(e){ r = { ok: false, erro: String(e) }; }
+  campo.classList.remove('plan-salvando');
+  if (r && r.ok){
+    planoMapa_()[k] = v; delete planoPend[k];
+    campo.classList.add('plan-ok');
+    setTimeout(function(){ campo.classList.remove('plan-ok'); }, 1200);
+  } else {
+    campo.classList.add('plan-erro');
+    campo.title = 'Não consegui gravar: ' + ((r && r.erro) || 'erro desconhecido');
+  }
+}
+
 /* ================= DRE: O ANO MES A MES =========
    A Karol pediu a visao que faltava: todas as categorias em linha, os meses em
    coluna, o total do ano e as entradas - como uma planilha aberta.
@@ -842,10 +901,11 @@ function renderAno(){
   /* ---- cabecalho ---- */
   var th = '<tr><th class="ano-nome">Categoria</th>'
          + ms.map(function(m){ return '<th class="ano-n">'+esc_(m)+'</th>'; }).join('')
-         + '<th class="ano-n ano-tot">Total</th><th class="ano-n">Média</th></tr>';
+         + '<th class="ano-n ano-plan">Planejado</th>'
+         + '<th class="ano-n ano-tot">Realizado</th><th class="ano-n">Média</th></tr>';
 
   /* ---- uma linha ---- */
-  var linha=function(nome, valores, classe, nMeses, extra){
+  var linha=function(nome, valores, classe, nMeses, extra, chavePlano, subsDoPlano){
     var tot=somaLinha(valores);
     var mx=0; ms.forEach(function(m){ if((valores[m]||0)>mx) mx=valores[m]||0; });
     var cels = ms.map(function(m){
@@ -857,8 +917,54 @@ function renderAno(){
       }
       return '<td class="ano-n"'+bg+'>'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
     }).join('');
+    /* celula do planejado: input quando ela pode digitar, numero quando o
+       valor vem somado das subcategorias. A cor compara com o realizado -
+       passar do planejado fica vermelho, e o ponto da coluna existir. */
+    var plan = '';
+    if (chavePlano){
+      var pv = planoSomaDe_(chavePlano, subsDoPlano);
+      var bloqueado = !!(subsDoPlano && subsDoPlano.temDigitado);
+      if (bloqueado){
+        plan = '<td class="ano-n ano-plan ano-plan-calc" title="Somado das subcategorias">'
+             + (pv?anoNum_(pv):'—') + '</td>';
+      } else {
+        plan = '<td class="ano-n ano-plan"><input class="plan-in" inputmode="decimal" '
+             + 'data-ch="'+esc_(chavePlano)+'" value="'+(pv?anoNum_(pv):'')+'"></td>';
+      }
+      if (pv && tot > pv) classe += ' ano-estourou';
+    } else {
+      plan = '<td class="ano-n ano-plan ano-zero">—</td>';
+    }
     return '<tr class="'+classe+'"'+(extra||'')+'>'
-      + '<td class="ano-nome">'+nome+'</td>' + cels
+      + '<td class="ano-nome">'+nome+'</td>' + cels + plan
+      + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
+      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
+  };
+
+  /* soma das subs quando ha alguma digitada; senao o valor da propria linha */
+  var planoSomaDe_=function(chave, subs){
+    if (subs && subs.temDigitado) return subs.soma;
+    return planoGet_(chave);
+  };
+  var subsDoPlano_=function(tipo, macro, g){
+    var soma=0, temDigitado=false;
+    Object.keys(g.subs).forEach(function(su){
+      var v=planoGet_(planoKey_(tipo, macro, su));
+      if(v){ soma+=v; temDigitado=true; }
+    });
+    return { soma:soma, temDigitado:temDigitado };
+  };
+
+  /* as linhas de total nao aceitam digitacao: elas somam as categorias.
+     Deixar digitar aqui criaria um total que nao bate com as partes. */
+  var linhaTotalPlan_=function(nome, valores, classe, nMeses, plan){
+    var tot=somaLinha(valores);
+    var cels = ms.map(function(m){
+      var v=valores[m]||0;
+      return '<td class="ano-n">'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
+    }).join('');
+    return '<tr class="'+classe+'"><td class="ano-nome">'+nome+'</td>'+cels
+      + '<td class="ano-n ano-plan ano-plan-calc">'+(plan?anoNum_(plan):'—')+'</td>'
       + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
       + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
   };
@@ -866,30 +972,40 @@ function renderAno(){
   var corpo='';
 
   /* ---- ENTRADAS ---- */
-  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+3)+'">Entradas</td></tr>';
+  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+4)+'">Entradas</td></tr>';
+  var planEnt=0;
   ordena(ent).forEach(function(ma){
     var g=ent[ma], aberto=!!anoAbertas['E:'+ma];
+    var sb=subsDoPlano_('E', ma, g);
+    planEnt += planoSomaDe_(planoKey_('E', ma, ''), sb);
     corpo += linha('<span class="ano-cx">'+(aberto?'–':'+')+'</span> '+esc_(ma),
-                   g.tot, 'ano-macro ano-clk', nEnt, ' data-k="E:'+esc_(ma)+'"');
+                   g.tot, 'ano-macro ano-clk', nEnt, ' data-k="E:'+esc_(ma)+'"',
+                   planoKey_('E', ma, ''), sb);
     if(aberto){
       Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
-        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nEnt); });
+        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nEnt,
+                   '', planoKey_('E', ma, su), null); });
     }
   });
-  corpo += linha('<b>Total que entrou</b>', totEnt, 'ano-soma ano-pos', nEnt);
+  corpo += linhaTotalPlan_('<b>Total que entrou</b>', totEnt, 'ano-soma ano-pos', nEnt, planEnt);
 
   /* ---- SAIDAS ---- */
-  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+3)+'">Saídas</td></tr>';
+  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+4)+'">Saídas</td></tr>';
+  var planSai=0;
   ordena(sai).forEach(function(ma){
     var g=sai[ma], aberto=!!anoAbertas['S:'+ma];
+    var sb=subsDoPlano_('S', ma, g);
+    planSai += planoSomaDe_(planoKey_('S', ma, ''), sb);
     corpo += linha('<span class="ano-cx">'+(aberto?'–':'+')+'</span> '+esc_(ma),
-                   g.tot, 'ano-macro ano-clk', nSai, ' data-k="S:'+esc_(ma)+'"');
+                   g.tot, 'ano-macro ano-clk', nSai, ' data-k="S:'+esc_(ma)+'"',
+                   planoKey_('S', ma, ''), sb);
     if(aberto){
       Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
-        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nSai); });
+        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nSai,
+                   '', planoKey_('S', ma, su), null); });
     }
   });
-  corpo += linha('<b>Total que saiu</b>', totSai, 'ano-soma ano-neg', nSai);
+  corpo += linhaTotalPlan_('<b>Total que saiu</b>', totSai, 'ano-soma ano-neg', nSai, planSai);
 
   /* ---- SOBRA ---- */
   var sobra={}; ms.forEach(function(m){ sobra[m]=(totEnt[m]||0)-(totSai[m]||0); });
@@ -898,7 +1014,9 @@ function renderAno(){
     var v=sobra[m]||0;
     return '<td class="ano-n '+(v>=0?'ano-v-pos':'ano-v-neg')+'">'+(v?anoNum_(v):'—')+'</td>';
   }).join('');
+  var planSobra = planEnt - planSai;
   corpo += '<tr class="ano-soma ano-sobra"><td class="ano-nome"><b>Sobrou</b></td>'+celsS
+    + '<td class="ano-n ano-plan '+(planSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+(planEnt||planSai?anoNum_(planSobra):'—')+'</td>'
     + '<td class="ano-n ano-tot '+(totSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+anoNum_(totSobra)+'</td>'
     + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td></tr>';
 
@@ -918,7 +1036,22 @@ function renderAno(){
   if(scrollPagina) window.scrollTo(0, scrollPagina);
 
   [].forEach.call(box.querySelectorAll('.ano-clk'), function(tr){
-    tr.onclick=function(){ var k=tr.dataset.k; anoAbertas[k]=!anoAbertas[k]; renderAno(); };
+    tr.onclick=function(ev){
+      /* clicar no campo do planejado nao pode abrir/fechar a categoria */
+      if(ev.target && ev.target.classList.contains('plan-in')) return;
+      var k=tr.dataset.k; anoAbertas[k]=!anoAbertas[k]; renderAno();
+    };
+  });
+
+  /* o planejado grava ao sair do campo, e so entao redesenha - redesenhar a
+     cada tecla tiraria o foco do campo no meio da digitacao */
+  [].forEach.call(box.querySelectorAll('input.plan-in'), function(inp){
+    inp.onclick=function(ev){ ev.stopPropagation(); };
+    inp.onchange=function(){
+      var v=planoNum_(inp.value);
+      inp.value = v ? anoNum_(v) : '';
+      planoGrava_(inp.dataset.ch, v, inp).then(function(){ renderAno(); });
+    };
   });
 
   var cap=el('anoCap');
@@ -1934,6 +2067,15 @@ const LC={MES:0,DATA:1,DESC:2,VALOR:3,CONTA:4,PESSOA:5,MACRO:6,SUB:7,FLAG:8,ENT:
 function diaDe_(d){ var p=String(d||'').split('/');
   return p.length===3 ? (p[2]+p[1]+p[0]) : '00000000'; }
 
+/* mesma gaveta da aba Categorias, mas presa a uma pessoa: sem o filtro de
+   pessoa a lista viria com os gastos dos dois e o numero nao bateria com a
+   barra que ela acabou de clicar. */
+function lancDaSubPessoa(pessoa, macro, sub){
+  abrirLanc(pessoa+' · '+sub, function(r){
+    return r[LC.SUB]===sub && r[LC.MACRO]===macro && r[LC.PESSOA]===pessoa;
+  }, 'só de '+pessoa);
+}
+
 function abrirLanc(titulo, pred, nota){
   var g=el('gavetaLanc'); if(!g || !D.lanc){ return; }
   var mesAtivo = filtroMes!=='Ano';
@@ -1986,7 +2128,11 @@ function lancDoMacro(macro){
   abrirLanc(macro, function(r){ return r[LC.MACRO]===macro; }, 'categoria inteira');
 }
 
-function renderAll(){setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAno();renderAnalises();}
+function renderAll(){
+  /* D acabou de chegar do backend: o cache do planejado tem que ser relido,
+     senao um valor gravado em outro aparelho nao aparece aqui. */
+  planoMapa=null;
+setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAno();renderAnalises();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
