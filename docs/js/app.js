@@ -135,18 +135,24 @@ function drawCombo(){
   const bw=gw*.46;
   MESES.forEach((m,i)=>{
     const cx=pad+gw*i+gw/2,d=D.mensal[m];
-    s+=`<rect x="${cx-bw/2}" y="${y(d.receita)}" width="${bw}" height="${H-pad-y(d.receita)}" rx="2.5" fill="var(--teal)"/>`
+    s+=`<rect x="${cx-bw/2}" y="${y(d.receita)}" width="${bw}" height="${H-pad-y(d.receita)}" rx="2.5" fill="var(--teal)">`
+     + `<title>Receita · ${m}: ${BRL(d.receita)}</title></rect>`
      + `<text x="${cx}" y="${H-pad+13}" font-size="11" fill="var(--ink-2)" text-anchor="middle">${m}</text>`;
   });
-  /* as linhas vem depois das barras pra desenhar por cima delas */
-  const linha=(campo,cor)=>{
-    const pts=MESES.map((m,i)=>[pad+gw*i+gw/2,y(D.mensal[m][campo])]);
-    let o=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${cor}" stroke-width="2.5"/>`;
-    pts.forEach(p=>o+=`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${cor}" stroke="var(--surface)" stroke-width="1.5"/>`);
+  /* As linhas vem depois das barras pra desenhar por cima delas.
+     Cada ponto leva um <title> (o balaozinho do proprio navegador) e um
+     circulo invisivel de raio 9 por baixo: a bolinha visivel tem 3,5 de
+     raio e e dificil de acertar com o mouse, ainda mais no celular. */
+  const linha=(campo,cor,rotulo)=>{
+    const pts=MESES.map((m,i)=>[pad+gw*i+gw/2,y(D.mensal[m][campo]),m,D.mensal[m][campo]]);
+    let o=`<polyline points="${pts.map(p=>p[0]+','+p[1]).join(' ')}" fill="none" stroke="${cor}" stroke-width="2.5"/>`;
+    pts.forEach(p=>o+=`<g><title>${rotulo} · ${p[2]}: ${BRL(p[3])}</title>`
+      + `<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="transparent"/>`
+      + `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${cor}" stroke="var(--surface)" stroke-width="1.5"/></g>`);
     return o;
   };
-  s+=linha('despesa','var(--coral)');
-  s+=linha('saldo','var(--amber)');
+  s+=linha('despesa','var(--coral)','Despesa');
+  s+=linha('saldo','var(--amber)','Sobra');
   el("combo").innerHTML=s+`</svg>`;
 }
 function drawDonut(cat){
