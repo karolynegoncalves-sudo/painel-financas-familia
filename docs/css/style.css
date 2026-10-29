@@ -309,7 +309,7 @@ table.ano thead .ano-nome{z-index:4;background:var(--surface-2)}
 .ano-plan{background:var(--surface-2)}
 .ano-plan-calc{color:var(--ink-2);font-style:italic}
 table.ano thead .ano-plan{background:var(--ink)}
-.ano-estourou .ano-tot{color:var(--coral)}
+.ano-estourou .ano-med{color:var(--coral);font-weight:600}
 
 /* Alerta de ritmo. A barra tem duas marcas: o preenchido e o quanto do
    planejado ja foi, e o tracinho claro e onde o mes esta. O que importa e a

@@ -812,7 +812,7 @@ function renderDividas(){
    quanto do mes ja passou. Se o gasto esta MUITO na frente do calendario, o
    mes ainda da pra salvar. No dia 30 nao da mais.
 
-   O planejado da aba DRE e do ANO - aqui divido por 12 pra achar o do mes. */
+   O planejado da aba DRE e MENSAL, entao entra direto, sem dividir. */
 function renderAlertaRitmo(){
   var box = el('alertaRitmo'); if(!box) return;
   var MA = D.mesAtual;
@@ -839,11 +839,10 @@ function renderAlertaRitmo(){
   Object.keys(mapa).forEach(function(k){
     var p = k.split('|');                       /* DRE | E/S | macro | sub */
     if(p[0] !== 'DRE' || p[1] !== 'S') return;  /* so despesa */
-    var anual = mapa[k] || 0; if(anual <= 0) return;
+    var mensal = mapa[k] || 0; if(mensal <= 0) return;   /* o planejado ja e mensal */
     var macro = p[2], sub = p[3] || '';
     var gasto = sub ? (gastoSu[macro+'|'+sub]||0) : (gastoMa[macro]||0);
     if(gasto < 50) return;                      /* R$ 30 adiantados nao sao noticia */
-    var mensal = anual / 12; if(mensal <= 0) return;
     var pctGasto = gasto / mensal;
     /* 25 pontos na frente do calendario e o gatilho que ela pediu */
     if(pctGasto - pctMes < 0.25) return;
@@ -978,8 +977,9 @@ function renderAno(){
   /* ---- cabecalho ---- */
   var th = '<tr><th class="ano-nome">Categoria</th>'
          + ms.map(function(m){ return '<th class="ano-n">'+esc_(m)+'</th>'; }).join('')
-         + '<th class="ano-n ano-plan">Planejado</th>'
-         + '<th class="ano-n ano-tot">Realizado</th><th class="ano-n">Média</th></tr>';
+         + '<th class="ano-n ano-tot">Total no ano</th>'
+         + '<th class="ano-n">Realizado/mês</th>'
+         + '<th class="ano-n ano-plan">Planejado/mês</th></tr>';
 
   /* ---- uma linha ---- */
   var linha=function(nome, valores, classe, nMeses, extra, chavePlano, subsDoPlano){
@@ -997,6 +997,7 @@ function renderAno(){
     /* celula do planejado: input quando ela pode digitar, numero quando o
        valor vem somado das subcategorias. A cor compara com o realizado -
        passar do planejado fica vermelho, e o ponto da coluna existir. */
+    var media = (tot&&nMeses) ? tot/nMeses : 0;
     var plan = '';
     if (chavePlano){
       var pv = planoSomaDe_(chavePlano, subsDoPlano);
@@ -1008,14 +1009,17 @@ function renderAno(){
         plan = '<td class="ano-n ano-plan"><input class="plan-in" inputmode="decimal" '
              + 'data-ch="'+esc_(chavePlano)+'" value="'+(pv?anoNum_(pv):'')+'"></td>';
       }
-      if (pv && tot > pv) classe += ' ano-estourou';
+      /* o planejado e MENSAL, entao quem se compara com ele e a media, nao o
+         total do ano. Comparar com o total pintaria tudo de vermelho. */
+      if (pv && media > pv) classe += ' ano-estourou';
     } else {
       plan = '<td class="ano-n ano-plan ano-zero">—</td>';
     }
     return '<tr class="'+classe+'"'+(extra||'')+'>'
-      + '<td class="ano-nome">'+nome+'</td>' + cels + plan
+      + '<td class="ano-nome">'+nome+'</td>' + cels
       + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
-      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
+      + '<td class="ano-n ano-med">'+(media?anoNum_(media):'—')+'</td>'
+      + plan + '</tr>';
   };
 
   /* soma das subs quando ha alguma digitada; senao o valor da propria linha */
@@ -1041,9 +1045,9 @@ function renderAno(){
       return '<td class="ano-n">'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
     }).join('');
     return '<tr class="'+classe+'"><td class="ano-nome">'+nome+'</td>'+cels
-      + '<td class="ano-n ano-plan ano-plan-calc">'+(plan?anoNum_(plan):'—')+'</td>'
       + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
-      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
+      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td>'
+      + '<td class="ano-n ano-plan ano-plan-calc">'+(plan?anoNum_(plan):'—')+'</td></tr>';
   };
 
   var corpo='';
@@ -1093,9 +1097,9 @@ function renderAno(){
   }).join('');
   var planSobra = planEnt - planSai;
   corpo += '<tr class="ano-soma ano-sobra"><td class="ano-nome"><b>Sobrou</b></td>'+celsS
-    + '<td class="ano-n ano-plan '+(planSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+(planEnt||planSai?anoNum_(planSobra):'—')+'</td>'
     + '<td class="ano-n ano-tot '+(totSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+anoNum_(totSobra)+'</td>'
-    + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td></tr>';
+    + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td>'
+    + '<td class="ano-n ano-plan '+(planSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+(planEnt||planSai?anoNum_(planSobra):'—')+'</td></tr>';
 
   /* Abrir uma categoria redesenha a tabela inteira, e o navegador joga o
      scroll pro topo: ela clicava numa linha la embaixo e perdia o lugar.
@@ -1133,7 +1137,7 @@ function renderAno(){
 
   var cap=el('anoCap');
   if(cap) cap.innerHTML='Todas as categorias em linha, os meses em coluna — a planilha que faltava. '
-    +'<b>Clique na categoria</b> para abrir as subcategorias. A coluna <b>Média</b> divide só pelos meses que tiveram movimento, '
+    +'<b>Clique na categoria</b> para abrir as subcategorias. <b>Realizado/mês</b> divide só pelos meses que tiveram movimento, '+'não por doze, e é com ele que o <b>Planejado/mês</b> se compara — quando passa, fica vermelho. '
     +'não por doze. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: '
     +'não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
 
