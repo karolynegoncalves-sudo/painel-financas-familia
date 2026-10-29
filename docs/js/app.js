@@ -12,7 +12,7 @@ let MESES=[];
 let filtroMes="Ano",aberta=null;
 
 // tabs
-const TABS=[["visao","Visão geral"],["fluxo","Fluxo de caixa"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["custo","Custo de vida"],["dividas","Dívidas"],["proj","Projeção 2027"],["patrim","Patrimônio"],["ano","DRE"],["analises","Análises & estratégias"]];
+const TABS=[["visao","Visão geral"],["fluxo","Fluxo de caixa"],["cat","Categorias & subcategorias"],["pessoa","Família / Karol / Vinícius"],["metas","Metas & delivery"],["custo","Custo de vida"],["dividas","Dívidas"],["proj","Projeção 2027"],["patrim","Patrimônio"],["ano","DRE"],["analises","Análises & estratégias"],["plan","PLAN"]];
 el("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab${i?'':' on'}" data-p="${t[0]}">${t[1]}</button>`).join("");
 [...document.querySelectorAll('.tab')].forEach(b=>b.onclick=()=>{
   [...document.querySelectorAll('.tab')].forEach(x=>x.classList.toggle('on',x===b));
@@ -401,6 +401,14 @@ function renderMetas(){
   /* o teto do termometro e a meta: mexeu no slider, repinta */
   drawPodeGastar();
 }
+
+/* botoes do PLAN */
+(function(){
+  var bt=el('planModo');
+  if(bt) bt.onclick=function(){ planModo = (planModo==='plano'?'real':'plano'); renderPlan(); };
+  var sm=el('planSemear');
+  if(sm) sm.onclick=function(){ planSemear_(); };
+})();
 ['sDeli','sRest'].forEach(id=>{var e=el(id); if(e) e.addEventListener('input',renderMetas);});
 
 // ---------- PROJEÇÃO ----------
@@ -1913,7 +1921,471 @@ function lancDoMacro(macro){
   abrirLanc(macro, function(r){ return r[LC.MACRO]===macro; }, 'categoria inteira');
 }
 
-function renderAll(){setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAno();renderAnalises();}
+
+/* ---------- PLAN (orcamento mes a mes) ----------
+   A DRE mostra as categorias como elas sao na base. O PLAN encaixa as mesmas
+   linhas no formato de orcamento domestico que ela usa de referencia:
+
+     Estilo de vida  - o que mantem a casa de pe
+     Viver o agora   - o que ela escolhe gastar
+     Viver o depois  - o que sobra e vira investimento
+
+   O corte entre mercado e restaurante e de proposito: mercado e necessidade,
+   restaurante e escolha, e eles caem em blocos diferentes.
+
+   Nada aqui e chutado: cada linha soma lancamentos reais. O que nao estiver
+   no mapa cai numa linha "Nao mapeado" visivel, nunca some em silencio -
+   categoria nova tem que aparecer, nao evaporar. */
+
+var PLAN_MAPA = {
+  /* receitas */
+  'Renda>PJ Carmovel (Vinícius)'      : ['REC','Fixas','Salário Vinícius'],
+  'Renda>Pró-labore (Karol)'          : ['REC','Fixas','Pró-labore Karol'],
+  'Renda>Distribuição de lucro'       : ['REC','Eventuais','Distribuição de lucro'],
+  'Renda>Freelance Le Sorelle (Karol)': ['REC','Eventuais','Freelance Le Sorelle'],
+  'Renda>Le Sorelle'                  : ['REC','Eventuais','Freelance Le Sorelle'],
+  'Renda>Vendas'                      : ['REC','Eventuais','Vendas'],
+  'Renda>Estornos/Rendimentos'        : ['REC','Eventuais','Estornos e rendimentos'],
+  'Transferência>Devolução cinema'    : ['REC','Eventuais','Estornos e rendimentos'],
+
+  /* estilo de vida - habitacional */
+  'Moradia>Contas/Reparos de casa'    : ['EV','Habitacional','Contas e reparos de casa'],
+  'Moradia>Compras'                   : ['EV','Habitacional','Casa — compras'],
+  'Moradia>Itens para casa'           : ['EV','Habitacional','Casa — compras'],
+  'Moradia>Panos de prato'            : ['EV','Habitacional','Casa — compras'],
+  'Telefonia/Internet>Telefonia'      : ['EV','Habitacional','Celular e internet'],
+  'Assinaturas>Icloud+'               : ['EV','Habitacional','Assinaturas'],
+  'Assinaturas>Spotify'               : ['EV','Habitacional','Assinaturas'],
+  'Assinaturas>Netflix'               : ['EV','Habitacional','Assinaturas'],
+  'Assinaturas>Amazon'                : ['EV','Habitacional','Assinaturas'],
+  'Assinaturas>Claude'                : ['EV','Habitacional','Assinaturas'],
+  'Assinaturas>Claro'                 : ['EV','Habitacional','Assinaturas'],
+  'Pets>Ração'                        : ['EV','Habitacional','Pet'],
+  'Pets>Veterinário'                  : ['EV','Habitacional','Pet'],
+  'Pets>Plano de saúde'               : ['EV','Habitacional','Pet'],
+  'Pets>Consulta'                     : ['EV','Habitacional','Pet'],
+  'Pets>Vacina'                       : ['EV','Habitacional','Pet'],
+  'Pets>Vermífugo'                    : ['EV','Habitacional','Pet'],
+  'Pets>Coleira'                      : ['EV','Habitacional','Pet'],
+  'Pets>Petisco'                      : ['EV','Habitacional','Pet'],
+  'Alimentação>Mercado'               : ['EV','Habitacional','Mercado, hortifruti, açougue e padaria'],
+  'Alimentação>Hortifruti'            : ['EV','Habitacional','Mercado, hortifruti, açougue e padaria'],
+  'Alimentação>Açougue'               : ['EV','Habitacional','Mercado, hortifruti, açougue e padaria'],
+  'Alimentação>Padaria'               : ['EV','Habitacional','Mercado, hortifruti, açougue e padaria'],
+  'Alimentação>Delivery'              : ['EV','Habitacional','Delivery'],
+
+  /* estilo de vida - saude */
+  'Saúde e Bem-estar>Convênio'        : ['EV','Saúde','Plano de saúde'],
+  'Saúde e Bem-estar>Psicólogo'       : ['EV','Saúde','Terapia'],
+  'Saúde e Bem-estar>Dentista'        : ['EV','Saúde','Dentista'],
+  'Saúde e Bem-estar>Farmácia'        : ['EV','Saúde','Medicamentos'],
+  'Saúde e Bem-estar>Whey Protein'    : ['EV','Saúde','Suplementos'],
+  'Saúde e Bem-estar>Academia'        : ['EV','Saúde','Academia'],
+
+  /* estilo de vida - transporte */
+  'Transporte>Impostos/Docs veículo'  : ['EV','Transporte','IPVA, licenciamento e docs'],
+  'Transporte>Seguro/Rastreador'      : ['EV','Transporte','Seguro e rastreador'],
+  'Transporte>Combustível'            : ['EV','Transporte','Combustível'],
+  'Transporte>Manutenção veículo'     : ['EV','Transporte','Manutenção e revisão'],
+  'Transporte>Estacionamento/Pedágio' : ['EV','Transporte','Estacionamento e pedágio'],
+  'Transporte>Estacionamento'         : ['EV','Transporte','Estacionamento e pedágio'],
+
+  /* estilo de vida - educacao */
+  'Educação>Faculdade'                : ['EV','Educação','Faculdade'],
+  'Educação>Cursos'                   : ['EV','Educação','Cursos'],
+
+  /* estilo de vida - outros */
+  'Tarifas>Tarifas bancárias'         : ['EV','Outros','Tarifa bancária'],
+  'Assinaturas>Milhas'                : ['EV','Outros','Milhas'],
+  'Outros>A identificar'              : ['EV','Outros','A identificar'],
+
+  /* viver o agora - gastos livres */
+  'Alimentação>Restaurante'           : ['VOA','Gastos livres','Restaurante'],
+  'Alimentação>Almoço Fora'           : ['VOA','Gastos livres','Restaurante'],
+  'Alimentação>Lanche'                : ['VOA','Gastos livres','Restaurante'],
+  'Alimentação>Doces'                 : ['VOA','Gastos livres','Restaurante'],
+  'Alimentação>Doces/Lanches'         : ['VOA','Gastos livres','Restaurante'],
+  'Lazer>Restaurante'                 : ['VOA','Gastos livres','Restaurante'],
+  'Lazer>Viagem'                      : ['VOA','Gastos livres','Viagem'],
+  'Lazer>Saidas'                      : ['VOA','Gastos livres','Saídas e passeios'],
+  'Lazer>Pix Saidas'                  : ['VOA','Gastos livres','Saídas e passeios'],
+  'Lazer>Passeios/Cinema'             : ['VOA','Gastos livres','Saídas e passeios'],
+  'Outros>Doação'                     : ['VOA','Gastos livres','Doações e dízimos'],
+  'Caridade>Vaquinha'                 : ['VOA','Gastos livres','Doações e dízimos'],
+  'Transporte>Multa'                  : ['VOA','Gastos livres','Multas'],
+
+  /* viver o agora - cuidados pessoais */
+  'Cuidados Pessoais>Roupas Karol'    : ['VOA','Cuidados pessoais','Roupas e sapatos'],
+  'Cuidados Pessoais>Roupas Vinicius' : ['VOA','Cuidados pessoais','Roupas e sapatos'],
+  'Compras>Roupas Vinicius'           : ['VOA','Cuidados pessoais','Roupas e sapatos'],
+  'Roupas Karol>Sapatos'              : ['VOA','Cuidados pessoais','Roupas e sapatos'],
+  'Cuidados Pessoais>Acessórios'      : ['VOA','Cuidados pessoais','Roupas e sapatos'],
+  'Cuidados Pessoais>Cabelo/Barbearia': ['VOA','Cuidados pessoais','Cabelo e barbearia'],
+  'Cuidados Pessoais>Unha'            : ['VOA','Cuidados pessoais','Unha e sobrancelha'],
+  'Cuidados Pessoais>Sobrancelha'     : ['VOA','Cuidados pessoais','Unha e sobrancelha'],
+  'Cuidados Pessoais>Estética/Beleza' : ['VOA','Cuidados pessoais','Estética e beleza'],
+  'Cuidados Pessoais>Piercing'        : ['VOA','Cuidados pessoais','Estética e beleza'],
+  'Cuidados Pessoais>Compras'         : ['VOA','Cuidados pessoais','Estética e beleza'],
+
+  /* viver o agora - compras */
+  'Compras>Marketplace/Geral'         : ['VOA','Compras','Marketplace e geral'],
+  'Compras>Compras'                   : ['VOA','Compras','Marketplace e geral'],
+  'Compras>Livros'                    : ['VOA','Compras','Livros'],
+  'Compras>Perfumaria'                : ['VOA','Compras','Perfumaria'],
+
+  /* viver o agora - presentes */
+  'Lazer>Presente'                    : ['VOA','Presente do mês','Presentes'],
+  'Lazer>Presente Chá de bebe'        : ['VOA','Presente do mês','Presentes'],
+  'Lazer>Aniversário'                 : ['VOA','Presente do mês','Aniversários']
+};
+
+var PLAN_BLOCOS = {
+  REC: ['Fixas','Eventuais'],
+  EV : ['Habitacional','Saúde','Transporte','Educação','Outros'],
+  VOA: ['Gastos livres','Cuidados pessoais','Compras','Presente do mês']
+};
+
+function planDados_(ms){
+  var d={REC:{},EV:{},VOA:{}}, tot={REC:{},EV:{},VOA:{}}, vod={};
+  ms.forEach(function(m){ tot.REC[m]=0; tot.EV[m]=0; tot.VOA[m]=0; vod[m]=0; });
+
+  function por(grupo, bloco, linha, m, v){
+    var g=d[grupo]; g[bloco]=g[bloco]||{};
+    g[bloco][linha]=g[bloco][linha]||{};
+    g[bloco][linha][m]=(g[bloco][linha][m]||0)+v;
+    tot[grupo][m]+=v;
+  }
+
+  (D.lanc||[]).forEach(function(r){
+    var m=r[LC.MES]; if(ms.indexOf(m)<0) return;
+    var fl=r[LC.FLAG], v=r[LC.VALOR];
+    var chave=(r[LC.MACRO]||'')+'>'+(r[LC.SUB]||'');
+
+    /* o aporte de investimento nao e gasto: e o "viver o depois".
+       saida = aplicou, entrada = resgatou. o liquido e o que importa. */
+    if(fl==='INVESTIMENTO'){
+      var ent = (r.length>LC.ENT) ? (r[LC.ENT]===1) : false;
+      vod[m] += ent ? -v : v;
+      return;
+    }
+    if(fl!=='RENDA' && fl!=='GASTO') return;
+
+    var dest=PLAN_MAPA[chave];
+    if(fl==='RENDA'){
+      if(dest && dest[0]==='REC') por('REC',dest[1],dest[2],m,v);
+      else por('REC','Eventuais','Outras entradas',m,v);
+      return;
+    }
+    if(dest && dest[0]!=='REC') por(dest[0],dest[1],dest[2],m,v);
+    else por('EV','Outros','Não mapeado — '+chave,m,v);
+  });
+
+  return {d:d, tot:tot, vod:vod};
+}
+
+function renderPlanReal(){
+  var box=el('planTab'); if(!box || !D.lanc) return;
+  var ms=(MESES||[]).slice();
+  if(!ms.length){ box.innerHTML='<div class="note">Sem meses na base.</div>'; return; }
+
+  var P=planDados_(ms), d=P.d, tot=P.tot, vod=P.vod;
+  var soma=function(o){ var s=0; ms.forEach(function(m){ s+=o[m]||0; }); return s; };
+  var nMeses=0; ms.forEach(function(m){ if(tot.REC[m]||tot.EV[m]||tot.VOA[m]) nMeses++; });
+  if(!nMeses) nMeses=1;
+
+  var th='<tr><th class="ano-nome">Orçamento</th>'
+       + ms.map(function(m){ return '<th class="ano-n">'+esc_(m)+'</th>'; }).join('')
+       + '<th class="ano-n ano-tot">Total</th><th class="ano-n">Média</th></tr>';
+
+  function linha(nome, val, classe, med){
+    var t=soma(val);
+    var cels=ms.map(function(m){
+      var v=val[m]||0;
+      return '<td class="ano-n'+(v?'':' ano-zero')+'">'+(v?BRL(v):'—')+'</td>';
+    }).join('');
+    return '<tr class="'+classe+'"><td class="ano-nome">'+nome+'</td>'+cels
+         + '<td class="ano-n ano-tot">'+BRL(t)+'</td>'
+         + '<td class="ano-n ano-med">'+(med===false?'':BRL(t/nMeses))+'</td></tr>';
+  }
+  function secao(nome, extra){
+    return '<tr class="ano-sec"><td class="ano-nome">'+nome+'</td><td colspan="'+(ms.length+2)+'">'+(extra||'')+'</td></tr>';
+  }
+
+  var html='';
+
+  /* ---- receitas ---- */
+  html+=secao('Receitas');
+  PLAN_BLOCOS.REC.forEach(function(b){
+    var bl=d.REC[b]; if(!bl || !Object.keys(bl).length) return;
+    var sub={}; ms.forEach(function(m){ sub[m]=0; });
+    Object.keys(bl).forEach(function(l){ ms.forEach(function(m){ sub[m]+=bl[l][m]||0; }); });
+    html+=linha('<b>'+esc_(b)+'</b>', sub, 'ano-macro');
+    Object.keys(bl).sort(function(x,y){ return soma(bl[y])-soma(bl[x]); }).forEach(function(l){
+      html+=linha('<span class="ano-ind"></span>'+esc_(l), bl[l], 'ano-sub');
+    });
+  });
+  html+=linha('Total de receitas', tot.REC, 'ano-soma');
+
+  /* ---- despesas ---- */
+  var totDesp={}; ms.forEach(function(m){ totDesp[m]=(tot.EV[m]||0)+(tot.VOA[m]||0); });
+  var grandeTotal=soma(totDesp)||1;
+
+  function grupoDespesa(g, titulo){
+    var pct=(soma(tot[g])/grandeTotal*100);
+    html+=secao(titulo, '<span class="plan-pct">'+pct.toFixed(0)+'% das despesas</span>');
+    PLAN_BLOCOS[g].forEach(function(b){
+      var bl=d[g][b]; if(!bl || !Object.keys(bl).length) return;
+      var sub={}; ms.forEach(function(m){ sub[m]=0; });
+      Object.keys(bl).forEach(function(l){ ms.forEach(function(m){ sub[m]+=bl[l][m]||0; }); });
+      html+=linha('<b>'+esc_(b)+'</b>', sub, 'ano-macro');
+      Object.keys(bl).sort(function(x,y){ return soma(bl[y])-soma(bl[x]); }).forEach(function(l){
+        html+=linha('<span class="ano-ind"></span>'+esc_(l), bl[l], 'ano-sub');
+      });
+    });
+    html+=linha('Total — '+titulo, tot[g], 'ano-soma');
+  }
+  html+=secao('Despesas');
+  grupoDespesa('EV','Estilo de vida');
+  grupoDespesa('VOA','Viver o agora');
+  html+=linha('Total de despesas', totDesp, 'ano-soma');
+
+  /* ---- fechamento ----
+     saldo do mes, depois o acumulado. a sobra do mes anterior ja vem
+     descontada do que foi pro investimento: dinheiro aplicado saiu do
+     bolso, nao pode aparecer como folga no mes seguinte. */
+  var saldo={}, sobra={}, livre={};
+  var carrega=0;
+  ms.forEach(function(m){
+    saldo[m]=(tot.REC[m]||0)-(totDesp[m]||0);
+    sobra[m]=carrega;
+    livre[m]=saldo[m]+carrega;
+    carrega=livre[m]-(vod[m]||0);
+  });
+
+  html+=secao('Fechamento');
+  html+=linha('Saldo do mês', saldo, 'ano-soma');
+  html+=linha('<span class="ano-ind"></span>Sobra do mês anterior', sobra, 'ano-sub', false);
+  html+=linha('<span class="ano-ind"></span>Viver o depois (aplicado)', vod, 'ano-sub');
+  html+=linha('Livre para aplicar', livre, 'ano-soma');
+
+  box.innerHTML='<div class="ano-wrap"><table class="ano">'
+    + '<thead>'+th+'</thead><tbody>'+html+'</tbody></table></div>';
+
+  var cap=el('planCap');
+  if(cap) cap.textContent='Mesmas linhas da DRE, arrumadas no formato de orçamento: '
+    + 'Estilo de vida é o que mantém a casa de pé, Viver o agora é o que vocês escolhem gastar, '
+    + 'Viver o depois é o que foi aplicado. Mercado e restaurante ficam em blocos diferentes de propósito — '
+    + 'um é necessidade, o outro é escolha. A média divide por '+nMeses+' meses com movimento.';
+}
+
+/* ---------- PLAN: modo planejado ----------
+   A grade vazia que ela preenche pra projetar o futuro. Mesmas linhas do
+   realizado, mas os proximos 12 meses e campos em branco.
+
+   Guarda na planilha (aba Plano) e nao no localStorage de proposito: ela
+   abre o painel no celular e no computador, e plano que some ao trocar de
+   aparelho nao e plano, e rascunho. */
+
+var planModo = 'real';        /* real | plano */
+var planCache = null;         /* {chave|mes: valor} vindo de D.plano */
+var planSujo  = {};           /* o que ainda nao confirmou gravacao */
+
+function planChave_(g,b,l){ return g+'|'+b+'|'+l; }
+
+function planMapa_(){
+  if(planCache) return planCache;
+  planCache={};
+  (D.plano||[]).forEach(function(r){ planCache[r[0]+'@@'+r[1]]=+r[2]||0; });
+  return planCache;
+}
+function planValor_(chave, mes){
+  var k=chave+'@@'+mes;
+  if(planSujo.hasOwnProperty(k)) return planSujo[k];
+  return planMapa_()[k]||0;
+}
+
+/* proximos 12 meses a partir do mes corrente */
+function planMesesFuturos_(){
+  var hoje=new Date(), out=[];
+  for(var i=0;i<12;i++){
+    var d=new Date(hoje.getFullYear(), hoje.getMonth()+i, 1);
+    out.push(d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2));
+  }
+  return out;
+}
+
+async function planGravar_(chave, mes, valor, campo){
+  var k=chave+'@@'+mes;
+  planSujo[k]=valor;
+  campo.classList.remove('plan-erro','plan-ok');
+  campo.classList.add('plan-salvando');
+  var params={acao:'plano', token:idToken, chave:chave, mes:mes, valor:String(valor)};
+  var qs=Object.keys(params).map(function(x){ return x+'='+encodeURIComponent(params[x]); }).join('&');
+  var r;
+  try{
+    var resp=await fetch(CFG.APPS_SCRIPT_URL+'?'+qs+'&_='+Date.now(),{cache:'no-store'});
+    r=await resp.json();
+  }catch(e){ r={ok:false, erro:String(e)}; }
+  campo.classList.remove('plan-salvando');
+  if(r && r.ok){
+    campo.classList.add('plan-ok');
+    planMapa_()[k]=valor; delete planSujo[k];
+    setTimeout(function(){ campo.classList.remove('plan-ok'); },1200);
+  }else{
+    campo.classList.add('plan-erro');
+    campo.title='Não consegui gravar: '+((r&&r.erro)||'erro desconhecido');
+  }
+  planTotais_();
+}
+
+/* recalcula os totais da grade planejada sem repintar a tabela inteira,
+   pra ela nao perder o foco do campo enquanto digita */
+function planTotais_(){
+  var tab=el('planTab'); if(!tab) return;
+  var ms=planMesesFuturos_();
+  var porMes={}, porGrupo={};
+  ms.forEach(function(m){ porMes[m]={REC:0,EV:0,VOA:0}; });
+  tab.querySelectorAll('input.plan-in').forEach(function(inp){
+    var g=inp.dataset.g, m=inp.dataset.mes, v=planNum_(inp.value);
+    if(porMes[m]) porMes[m][g]=(porMes[m][g]||0)+v;
+  });
+  function pinta(sel, fn){
+    tab.querySelectorAll(sel).forEach(function(td){
+      var m=td.dataset.mes; if(!m) return;
+      var v=fn(porMes[m]||{REC:0,EV:0,VOA:0});
+      td.textContent=v?BRL(v):'—';
+      td.classList.toggle('ano-zero', !v);
+      td.classList.toggle('ano-v-neg', v<0);
+    });
+  }
+  pinta('td.plan-t-rec', function(o){ return o.REC; });
+  pinta('td.plan-t-ev',  function(o){ return o.EV; });
+  pinta('td.plan-t-voa', function(o){ return o.VOA; });
+  pinta('td.plan-t-desp',function(o){ return o.EV+o.VOA; });
+  pinta('td.plan-t-saldo',function(o){ return o.REC-o.EV-o.VOA; });
+  /* acumulado */
+  var carrega=0;
+  ms.forEach(function(m){
+    var o=porMes[m]||{REC:0,EV:0,VOA:0};
+    var saldo=o.REC-o.EV-o.VOA, livre=saldo+carrega;
+    var td=tab.querySelector('td.plan-t-acum[data-mes="'+m+'"]');
+    if(td){ td.textContent=livre?BRL(livre):'—';
+      td.classList.toggle('ano-zero',!livre); td.classList.toggle('ano-v-neg',livre<0); }
+    carrega=livre;
+  });
+}
+function planNum_(s){
+  s=String(s||'').replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.');
+  var v=parseFloat(s); return isNaN(v)?0:v;
+}
+
+/* as linhas da grade vazia saem do realizado: projetar comeca do que a vida
+   dela ja mostrou, nao de uma folha em branco com 80 nomes */
+function planLinhasConhecidas_(){
+  var ms=(MESES||[]).slice();
+  var P=planDados_(ms), fora=[];
+  ['REC','EV','VOA'].forEach(function(g){
+    PLAN_BLOCOS[g].forEach(function(b){
+      var bl=P.d[g][b]; if(!bl) return;
+      var soma=function(o){ var s=0; ms.forEach(function(m){ s+=o[m]||0; }); return s; };
+      Object.keys(bl).sort(function(x,y){ return soma(bl[y])-soma(bl[x]); }).forEach(function(l){
+        fora.push({g:g, b:b, l:l, media:soma(bl[l])/Math.max(ms.length,1)});
+      });
+    });
+  });
+  return fora;
+}
+
+function renderPlanPlanejado(){
+  var box=el('planTab'); if(!box) return;
+  var ms=planMesesFuturos_();
+  var linhas=planLinhasConhecidas_();
+  var semBackend = !D.plano;
+
+  var th='<tr><th class="ano-nome">Orçamento</th>'
+       + ms.map(function(m){ return '<th class="ano-n">'+esc_(m)+'</th>'; }).join('')
+       + '<th class="ano-n ano-tot">Total</th></tr>';
+
+  function secao(nome){
+    return '<tr class="ano-sec"><td class="ano-nome">'+nome+'</td><td colspan="'+(ms.length+1)+'"></td></tr>';
+  }
+  function totalLinha(nome, cls, classe){
+    return '<tr class="'+classe+'"><td class="ano-nome">'+nome+'</td>'
+      + ms.map(function(m){ return '<td class="ano-n '+cls+'" data-mes="'+m+'">—</td>'; }).join('')
+      + '<td class="ano-n ano-tot"></td></tr>';
+  }
+
+  var html='', grupoAtual=null, blocoAtual=null;
+  var titulos={REC:'Receitas', EV:'Estilo de vida', VOA:'Viver o agora'};
+
+  linhas.forEach(function(x){
+    if(x.g!==grupoAtual){ grupoAtual=x.g; blocoAtual=null; html+=secao(titulos[x.g]); }
+    if(x.b!==blocoAtual){ blocoAtual=x.b;
+      html+='<tr class="ano-macro"><td class="ano-nome"><b>'+esc_(x.b)+'</b></td><td colspan="'+(ms.length+1)+'"></td></tr>'; }
+    var ch=planChave_(x.g,x.b,x.l);
+    html+='<tr class="ano-sub"><td class="ano-nome"><span class="ano-ind"></span>'+esc_(x.l)+'</td>'
+      + ms.map(function(m){
+          var v=planValor_(ch,m);
+          return '<td class="ano-n"><input class="plan-in" inputmode="decimal" '
+               + 'data-ch="'+esc_(ch)+'" data-mes="'+m+'" data-g="'+x.g+'" '
+               + 'data-media="'+x.media.toFixed(2)+'" '
+               + 'value="'+(v?BRL(v).replace('R$','').trim():'')+'"></td>';
+        }).join('')
+      + '<td class="ano-n ano-tot"></td></tr>';
+  });
+
+  html+=secao('Fechamento');
+  html+=totalLinha('Total de receitas','plan-t-rec','ano-soma');
+  html+=totalLinha('Total estilo de vida','plan-t-ev','ano-macro');
+  html+=totalLinha('Total viver o agora','plan-t-voa','ano-macro');
+  html+=totalLinha('Total de despesas','plan-t-desp','ano-soma');
+  html+=totalLinha('Saldo do mês','plan-t-saldo','ano-soma');
+  html+=totalLinha('Acumulado','plan-t-acum','ano-soma');
+
+  box.innerHTML=(semBackend
+      ? '<div class="callout">O backend ainda não tem a aba <b>Plano</b>. Pode preencher e conferir as contas, mas só vai <b>gravar</b> depois que eu publicar a nova versão do Apps Script.</div>'
+      : '')
+    + '<div class="ano-wrap"><table class="ano">'
+    + '<thead>'+th+'</thead><tbody>'+html+'</tbody></table></div>';
+
+  box.querySelectorAll('input.plan-in').forEach(function(inp){
+    inp.addEventListener('input', planTotais_);
+    inp.addEventListener('change', function(){
+      var v=planNum_(inp.value);
+      inp.value = v ? BRL(v).replace('R$','').trim() : '';
+      if(!semBackend) planGravar_(inp.dataset.ch, inp.dataset.mes, v, inp);
+      planTotais_();
+    });
+  });
+  planTotais_();
+
+  var cap=el('planCap');
+  if(cap) cap.textContent='Grade vazia dos próximos 12 meses, pra você projetar. '
+    + 'As linhas são as mesmas que aparecem no seu realizado — projetar começa do que a sua vida já mostrou, '
+    + 'não de uma folha em branco. Cada campo salva sozinho ao sair dele.';
+}
+
+function planSemear_(){
+  var box=el('planTab'); if(!box) return;
+  box.querySelectorAll('input.plan-in').forEach(function(inp){
+    if(planNum_(inp.value)) return;          /* nao sobrescreve o que ela ja pos */
+    var m=+inp.dataset.media||0;
+    if(m<1) return;
+    inp.value=BRL(m).replace('R$','').trim();
+    inp.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+}
+
+/* o botao troca entre o que aconteceu e o que ela planeja */
+function renderPlan(){
+  if(planModo==='plano') renderPlanPlanejado(); else renderPlanReal();
+  var bt=el('planModo');
+  if(bt) bt.textContent = planModo==='plano' ? 'Ver o realizado' : 'Ver o planejado (vazio)';
+  var sm=el('planSemear');
+  if(sm) sm.style.display = planModo==='plano' ? '' : 'none';
+}
+
+function renderAll(){setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAno();renderAnalises();renderPlan();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
