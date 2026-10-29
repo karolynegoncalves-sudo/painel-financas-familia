@@ -862,7 +862,20 @@ function renderAno(){
     + '<td class="ano-n ano-tot '+(totSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+anoNum_(totSobra)+'</td>'
     + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td></tr>';
 
+  /* Abrir uma categoria redesenha a tabela inteira, e o navegador joga o
+     scroll pro topo: ela clicava numa linha la embaixo e perdia o lugar.
+     Guardo onde estava antes de trocar o innerHTML e devolvo depois - tanto
+     o scroll de dentro da tabela quanto o da pagina. */
+  var wrapAntes = box.querySelector('.ano-wrap');
+  var scrollTabela = wrapAntes ? wrapAntes.scrollTop : 0;
+  var scrollLado   = wrapAntes ? wrapAntes.scrollLeft : 0;
+  var scrollPagina = window.scrollY;
+
   box.innerHTML = '<div class="ano-wrap"><table class="ano"><thead>'+th+'</thead><tbody>'+corpo+'</tbody></table></div>';
+
+  var wrapDepois = box.querySelector('.ano-wrap');
+  if(wrapDepois){ wrapDepois.scrollTop = scrollTabela; wrapDepois.scrollLeft = scrollLado; }
+  if(scrollPagina) window.scrollTo(0, scrollPagina);
 
   [].forEach.call(box.querySelectorAll('.ano-clk'), function(tr){
     tr.onclick=function(){ var k=tr.dataset.k; anoAbertas[k]=!anoAbertas[k]; renderAno(); };
