@@ -292,3 +292,14 @@ table.ano thead .ano-nome{z-index:4;background:var(--surface-2)}
 .ano-v-pos{color:var(--teal)}.ano-v-neg{color:var(--coral)}
 .ano-sobra td{border-top:2px solid var(--ink)}
 @media(max-width:640px){.ano-nome{min-width:150px}table.ano th,table.ano td{padding:6px 7px;font-size:11.5px}}
+
+/* balaozinho do grafico Receita x Despesa. pointer-events:none e essencial:
+   sem isso o balao fica embaixo do cursor e o mousemove comeca a piscar. */
+.cbo-tip{position:absolute;display:none;pointer-events:none;z-index:5;
+  background:var(--surface);border:1px solid var(--line);border-radius:9px;
+  padding:9px 11px;box-shadow:0 6px 20px rgba(0,0,0,.13);min-width:168px;font-size:12px}
+.cbo-tip b{display:block;margin-bottom:5px;font-size:12.5px}
+.cbo-tip span{display:flex;align-items:center;gap:6px;margin-top:3px;color:var(--ink-2)}
+.cbo-tip em{margin-left:auto;font-style:normal;font-weight:600;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.cbo-tip em.neg{color:var(--coral)} .cbo-tip em.pos{color:var(--teal)}

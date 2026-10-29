@@ -120,7 +120,12 @@ function drawSaldoContas(){
    Duas barras lado a lado obrigam a comparar altura de coisas separadas por
    um vao; com a despesa virando linha, ela passa POR DENTRO da barra e da
    pra ver num relance se o mes comeu o que entrou. A sobra continua embaixo,
-   e as duas linhas se cruzam exatamente onde o mes vira negativo. */
+   e as duas linhas se cruzam exatamente onde o mes vira negativo.
+
+   O balaozinho nao e o <title> nativo do SVG: ele exige acertar a bolinha
+   (3,5px de raio), demora um segundo pra abrir e mostra um valor so. Aqui a
+   area sensivel e a COLUNA INTEIRA do mes, e aparecem os tres numeros de uma
+   vez - que e o que ela quer saber quando para o mouse num mes. */
 function drawCombo(){
   const W=640,H=230,pad=32,n=MESES.length,gw=(W-pad*2)/n;
   const mx=Math.max(...MESES.flatMap(m=>[D.mensal[m].receita,D.mensal[m].despesa]));
@@ -131,29 +136,58 @@ function drawCombo(){
     s+=`<line x1="${pad}" y1="${gy}" x2="${W-pad}" y2="${gy}" stroke="var(--line)"/>`
      + `<text x="2" y="${gy+3}" font-size="9" fill="var(--ink-3)">${Math.round(mx*(1-i/3)/1000)}k</text>`;
   }
+  /* a faixa de destaque do mes sob o mouse, desenhada antes de tudo */
+  s+=`<rect id="cboFaixa" x="0" y="${pad-6}" width="${gw}" height="${H-pad*2+12}" fill="var(--ink)" opacity="0" rx="4"/>`;
   /* a barra fica mais larga agora que e uma so, e centrada no mes */
   const bw=gw*.46;
   MESES.forEach((m,i)=>{
     const cx=pad+gw*i+gw/2,d=D.mensal[m];
-    s+=`<rect x="${cx-bw/2}" y="${y(d.receita)}" width="${bw}" height="${H-pad-y(d.receita)}" rx="2.5" fill="var(--teal)">`
-     + `<title>Receita · ${m}: ${BRL(d.receita)}</title></rect>`
+    s+=`<rect x="${cx-bw/2}" y="${y(d.receita)}" width="${bw}" height="${H-pad-y(d.receita)}" rx="2.5" fill="var(--teal)"/>`
      + `<text x="${cx}" y="${H-pad+13}" font-size="11" fill="var(--ink-2)" text-anchor="middle">${m}</text>`;
   });
-  /* As linhas vem depois das barras pra desenhar por cima delas.
-     Cada ponto leva um <title> (o balaozinho do proprio navegador) e um
-     circulo invisivel de raio 9 por baixo: a bolinha visivel tem 3,5 de
-     raio e e dificil de acertar com o mouse, ainda mais no celular. */
-  const linha=(campo,cor,rotulo)=>{
-    const pts=MESES.map((m,i)=>[pad+gw*i+gw/2,y(D.mensal[m][campo]),m,D.mensal[m][campo]]);
-    let o=`<polyline points="${pts.map(p=>p[0]+','+p[1]).join(' ')}" fill="none" stroke="${cor}" stroke-width="2.5"/>`;
-    pts.forEach(p=>o+=`<g><title>${rotulo} · ${p[2]}: ${BRL(p[3])}</title>`
-      + `<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="transparent"/>`
-      + `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${cor}" stroke="var(--surface)" stroke-width="1.5"/></g>`);
+  const linha=(campo,cor)=>{
+    const pts=MESES.map((m,i)=>[pad+gw*i+gw/2,y(D.mensal[m][campo])]);
+    let o=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${cor}" stroke-width="2.5"/>`;
+    pts.forEach(p=>o+=`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${cor}" stroke="var(--surface)" stroke-width="1.5"/>`);
     return o;
   };
-  s+=linha('despesa','var(--coral)','Despesa');
-  s+=linha('saldo','var(--amber)','Sobra');
-  el("combo").innerHTML=s+`</svg>`;
+  s+=linha('despesa','var(--coral)');
+  s+=linha('saldo','var(--amber)');
+  s+=`</svg>`;
+
+  const cx0=el("combo");
+  cx0.style.position='relative';
+  cx0.innerHTML = s + '<div class="cbo-tip" id="cboTip"></div>';
+
+  const svgEl=cx0.querySelector('svg'), tip=el('cboTip'), faixa=el('cboFaixa');
+  /* qual mes esta sob o mouse: converto o pixel pra coordenada do viewBox,
+     porque o SVG estica conforme a largura da tela */
+  const mesSob=(ev)=>{
+    const r=svgEl.getBoundingClientRect();
+    if(!r.width) return -1;
+    const vx=((ev.clientX-r.left)/r.width)*W;
+    const i=Math.floor((vx-pad)/gw);
+    return (i<0||i>=n) ? -1 : i;
+  };
+  const esconder=()=>{ tip.style.display='none'; if(faixa) faixa.setAttribute('opacity','0'); };
+  cx0.onmousemove=function(ev){
+    const i=mesSob(ev);
+    if(i<0){ esconder(); return; }
+    const m=MESES[i], d=D.mensal[m];
+    if(faixa){ faixa.setAttribute('x', (pad+gw*i).toFixed(1)); faixa.setAttribute('opacity','0.05'); }
+    tip.innerHTML='<b>'+esc_(m)+'</b>'
+      + '<span><i class="dot" style="background:var(--teal)"></i>Receita<em>'+BRL(d.receita)+'</em></span>'
+      + '<span><i class="dot" style="background:var(--coral)"></i>Despesa<em>'+BRL(d.despesa)+'</em></span>'
+      + '<span><i class="dot" style="background:var(--amber)"></i>Sobra<em class="'+(d.saldo<0?'neg':'pos')+'">'+BRL(d.saldo)+'</em></span>';
+    tip.style.display='block';
+    /* o balao segue o mouse, mas vira pro outro lado perto da borda direita
+       pra nao sair do card */
+    const rc=cx0.getBoundingClientRect(), px=ev.clientX-rc.left, py=ev.clientY-rc.top;
+    const larg=tip.offsetWidth||170;
+    tip.style.left=(px+larg+18>rc.width ? px-larg-12 : px+12)+'px';
+    tip.style.top=Math.max(0,py-tip.offsetHeight-10)+'px';
+  };
+  cx0.onmouseleave=esconder;
 }
 function drawDonut(cat){
   const ents=Object.entries(cat).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]);const tot=ents.reduce((s,e)=>s+e[1],0)||1;
