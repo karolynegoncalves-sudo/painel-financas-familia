@@ -326,3 +326,19 @@ table.ano thead .ano-plan{background:var(--ink)}
 .rit-det{grid-column:1/-1;font-size:11.5px;color:var(--ink-2)}
 .rit-det .neg{color:var(--coral)} .rit-det .pos{color:var(--teal)}
 .rit-pe{font-size:11.5px;color:var(--ink-3);margin-top:10px}
+
+/* DRE com dois andares de cabecalho: o mes em cima, Plan./Real. embaixo.
+   A coluna do planejado tem fundo proprio pra separar visualmente os pares -
+   com 24 colunas seguidas, sem isso nao da pra saber onde um mes acaba. */
+.ano-h1 .ano-mesh{border-left:2px solid var(--surface)}
+.ano-h2 th{font-size:9.5px;letter-spacing:.04em;opacity:.8;font-weight:500}
+table.ano thead .ano-plan{background:var(--ink)}
+td.ano-plan{background:var(--surface-2);border-left:2px solid var(--line)}
+.ano-plan .plan-in{width:100%;min-width:56px;border:1px solid transparent;background:transparent;
+  color:inherit;font:inherit;font-size:11.5px;text-align:right;padding:2px 3px;border-radius:4px;
+  font-variant-numeric:tabular-nums}
+.ano-plan .plan-in:hover{border-color:var(--line)}
+.ano-plan .plan-in:focus{outline:none;border-color:var(--teal);background:var(--surface)}
+.plan-salvando{border-color:var(--amber)!important}
+.plan-ok{border-color:var(--teal)!important}
+.plan-erro{border-color:var(--coral)!important;background:rgba(220,90,80,.08)}

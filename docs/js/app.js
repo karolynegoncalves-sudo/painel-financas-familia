@@ -837,9 +837,11 @@ function renderAlertaRitmo(){
   /* toda linha que tem planejado vira um candidato a alerta */
   var mapa = planoMapa_(), achados = [];
   Object.keys(mapa).forEach(function(k){
-    var p = k.split('|');                       /* DRE | E/S | macro | sub */
+    var corte = k.lastIndexOf('@');
+    if(corte < 0 || k.slice(corte+1) !== chaveMes) return;   /* so o mes corrente */
+    var p = k.slice(0,corte).split('|');        /* DRE | E/S | macro | sub */
     if(p[0] !== 'DRE' || p[1] !== 'S') return;  /* so despesa */
-    var mensal = mapa[k] || 0; if(mensal <= 0) return;   /* o planejado ja e mensal */
+    var mensal = mapa[k] || 0; if(mensal <= 0) return;
     var macro = p[2], sub = p[3] || '';
     var gasto = sub ? (gastoSu[macro+'|'+sub]||0) : (gastoMa[macro]||0);
     if(gasto < 50) return;                      /* R$ 30 adiantados nao sao noticia */
@@ -894,7 +896,7 @@ var planoMapa = null;
 function planoMapa_(){
   if(planoMapa) return planoMapa;
   planoMapa = {};
-  (D.plano||[]).forEach(function(r){ planoMapa[String(r[0])] = +r[2] || 0; });
+  (D.plano||[]).forEach(function(r){ planoMapa[String(r[0])+'@'+String(r[1])] = +r[2] || 0; });
   return planoMapa;
 }
 function planoKey_(tipo, macro, sub){
@@ -913,7 +915,12 @@ async function planoGrava_(k, v, campo){
   planoPend[k] = v;
   campo.classList.remove('plan-erro', 'plan-ok');
   campo.classList.add('plan-salvando');
-  var params = { acao: 'plano', token: idToken, chave: k, mes: 'ANO', valor: String(v) };
+  /* a chave vem como 'DRE|S|macro|sub@2026-03': separo pra gravar o mes na
+     coluna dele, que e como a aba Plano foi desenhada */
+  var corte = k.lastIndexOf('@');
+  var chave = corte>0 ? k.slice(0,corte) : k;
+  var mes   = corte>0 ? k.slice(corte+1) : 'ANO';
+  var params = { acao: 'plano', token: idToken, chave: chave, mes: mes, valor: String(v) };
   var qs = Object.keys(params).map(function(x){ return x + '=' + encodeURIComponent(params[x]); }).join('&');
   var r;
   try {
@@ -974,132 +981,138 @@ function renderAno(){
   var nEnt=0, nSai=0;
   ms.forEach(function(m){ if(totEnt[m]) nEnt++; if(totSai[m]) nSai++; });
 
-  /* ---- cabecalho ---- */
-  var th = '<tr><th class="ano-nome">Categoria</th>'
-         + ms.map(function(m){ return '<th class="ano-n">'+esc_(m)+'</th>'; }).join('')
-         + '<th class="ano-n ano-tot">Total no ano</th>'
-         + '<th class="ano-n">Realizado/mês</th>'
-         + '<th class="ano-n ano-plan">Planejado/mês</th></tr>';
+  /* ---- cabecalho: dois andares, um mes por par de colunas ----
+     Planejado e Realizado tem que ficar colados DENTRO do mes. Com o
+     planejado la no fim da linha, comparar exigia correr o olho por doze
+     colunas e guardar o numero na cabeca - e e justamente a comparacao que
+     interessa. */
+  var th = '<tr class="ano-h1"><th class="ano-nome" rowspan="2">Categoria</th>'
+         + ms.map(function(m){ return '<th class="ano-n ano-mesh" colspan="2">'+esc_(m)+'</th>'; }).join('')
+         + '<th class="ano-n ano-mesh" colspan="2">Ano</th>'
+         + '<th class="ano-n ano-mesh" rowspan="2">Média/mês</th></tr>'
+         + '<tr class="ano-h2">'
+         + ms.map(function(){ return '<th class="ano-n ano-plan">Plan.</th><th class="ano-n">Real.</th>'; }).join('')
+         + '<th class="ano-n ano-plan">Plan.</th><th class="ano-n ano-tot">Real.</th></tr>';
+
+  var nCols = ms.length*2 + 3;
+
+  /* quanto foi planejado nesta linha neste mes. Se alguma subcategoria tem
+     valor no mes, a categoria passa a valer a SOMA das subs e para de aceitar
+     digitacao - senao o mesmo dinheiro entraria duas vezes. */
+  var planoDaLinha_=function(tipo, macro, sub, g, m){
+    if(sub) return { v: planoGet_(planoKey_(tipo,macro,sub)+'@'+m), travado:false };
+    var soma=0, tem=false;
+    if(g) Object.keys(g.subs).forEach(function(su){
+      var x=planoGet_(planoKey_(tipo,macro,su)+'@'+m);
+      if(x){ soma+=x; tem=true; }
+    });
+    if(tem) return { v:soma, travado:true };
+    return { v: planoGet_(planoKey_(tipo,macro,'')+'@'+m), travado:false };
+  };
 
   /* ---- uma linha ---- */
-  var linha=function(nome, valores, classe, nMeses, extra, chavePlano, subsDoPlano){
-    var tot=somaLinha(valores);
+  var linha=function(nome, valores, classe, nMeses, extra, ctx){
+    var tot=somaLinha(valores), totPlan=0;
     var mx=0; ms.forEach(function(m){ if((valores[m]||0)>mx) mx=valores[m]||0; });
+    var editavel = !!ctx;
     var cels = ms.map(function(m){
       var v=valores[m]||0;
-      var bg='';
-      if(anoZoom && v>0 && mx>0 && classe.indexOf('ano-macro')<0 && classe.indexOf('ano-soma')<0){
-        var a=(v/mx)*0.22;
-        bg=' style="background:rgba(216,73,47,'+a.toFixed(3)+')"';
-      }
-      return '<td class="ano-n"'+bg+'>'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
-    }).join('');
-    /* celula do planejado: input quando ela pode digitar, numero quando o
-       valor vem somado das subcategorias. A cor compara com o realizado -
-       passar do planejado fica vermelho, e o ponto da coluna existir. */
-    var media = (tot&&nMeses) ? tot/nMeses : 0;
-    var plan = '';
-    if (chavePlano){
-      var pv = planoSomaDe_(chavePlano, subsDoPlano);
-      var bloqueado = !!(subsDoPlano && subsDoPlano.temDigitado);
-      if (bloqueado){
-        plan = '<td class="ano-n ano-plan ano-plan-calc" title="Somado das subcategorias">'
-             + (pv?anoNum_(pv):'—') + '</td>';
+      var pl = editavel ? planoDaLinha_(ctx.tipo, ctx.macro, ctx.sub, ctx.g, m) : {v:0, travado:true};
+      totPlan += pl.v;
+      var tdPlan;
+      if(!editavel){
+        tdPlan = '<td class="ano-n ano-plan ano-zero">—</td>';
+      } else if(pl.travado){
+        tdPlan = '<td class="ano-n ano-plan ano-plan-calc" title="Somado das subcategorias">'
+               + (pl.v?anoNum_(pl.v):'—')+'</td>';
       } else {
-        plan = '<td class="ano-n ano-plan"><input class="plan-in" inputmode="decimal" '
-             + 'data-ch="'+esc_(chavePlano)+'" value="'+(pv?anoNum_(pv):'')+'"></td>';
+        tdPlan = '<td class="ano-n ano-plan"><input class="plan-in" inputmode="decimal" '
+               + 'data-ch="'+esc_(planoKey_(ctx.tipo,ctx.macro,ctx.sub))+'" data-mes="'+esc_(m)+'" '
+               + 'value="'+(pl.v?anoNum_(pl.v):'')+'"></td>';
       }
-      /* o planejado e MENSAL, entao quem se compara com ele e a media, nao o
-         total do ano. Comparar com o total pintaria tudo de vermelho. */
-      if (pv && media > pv) classe += ' ano-estourou';
-    } else {
-      plan = '<td class="ano-n ano-plan ano-zero">—</td>';
-    }
+      var bg='', extraCls='';
+      if(anoZoom && v>0 && mx>0 && classe.indexOf('ano-macro')<0 && classe.indexOf('ano-soma')<0){
+        bg=' style="background:rgba(216,73,47,'+((v/mx)*0.22).toFixed(3)+')"';
+      }
+      /* estourou o mes: o numero do realizado fica vermelho */
+      if(pl.v && v > pl.v) extraCls=' ano-estourou';
+      return tdPlan + '<td class="ano-n'+extraCls+'"'+bg+'>'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
+    }).join('');
     return '<tr class="'+classe+'"'+(extra||'')+'>'
       + '<td class="ano-nome">'+nome+'</td>' + cels
+      + '<td class="ano-n ano-plan ano-plan-calc">'+(totPlan?anoNum_(totPlan):'—')+'</td>'
       + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
-      + '<td class="ano-n ano-med">'+(media?anoNum_(media):'—')+'</td>'
-      + plan + '</tr>';
+      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
   };
 
-  /* soma das subs quando ha alguma digitada; senao o valor da propria linha */
-  var planoSomaDe_=function(chave, subs){
-    if (subs && subs.temDigitado) return subs.soma;
-    return planoGet_(chave);
-  };
-  var subsDoPlano_=function(tipo, macro, g){
-    var soma=0, temDigitado=false;
-    Object.keys(g.subs).forEach(function(su){
-      var v=planoGet_(planoKey_(tipo, macro, su));
-      if(v){ soma+=v; temDigitado=true; }
+  /* soma do planejado das CATEGORIAS num mes - as linhas de total usam isso */
+  var planoTotalMes_=function(tipo, grupo, m){
+    var s=0;
+    Object.keys(grupo).forEach(function(ma){
+      s += planoDaLinha_(tipo, ma, '', grupo[ma], m).v;
     });
-    return { soma:soma, temDigitado:temDigitado };
+    return s;
   };
-
-  /* as linhas de total nao aceitam digitacao: elas somam as categorias.
-     Deixar digitar aqui criaria um total que nao bate com as partes. */
-  var linhaTotalPlan_=function(nome, valores, classe, nMeses, plan){
-    var tot=somaLinha(valores);
+  var linhaTotal_=function(nome, valores, classe, nMeses, tipo, grupo){
+    var tot=somaLinha(valores), totPlan=0;
     var cels = ms.map(function(m){
-      var v=valores[m]||0;
-      return '<td class="ano-n">'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
+      var v=valores[m]||0, pv = tipo ? planoTotalMes_(tipo, grupo, m) : 0;
+      totPlan += pv;
+      return '<td class="ano-n ano-plan ano-plan-calc">'+(pv?anoNum_(pv):'—')+'</td>'
+           + '<td class="ano-n">'+(v?anoNum_(v):'<span class="ano-zero">—</span>')+'</td>';
     }).join('');
     return '<tr class="'+classe+'"><td class="ano-nome">'+nome+'</td>'+cels
+      + '<td class="ano-n ano-plan ano-plan-calc">'+(totPlan?anoNum_(totPlan):'—')+'</td>'
       + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
-      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td>'
-      + '<td class="ano-n ano-plan ano-plan-calc">'+(plan?anoNum_(plan):'—')+'</td></tr>';
+      + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
   };
 
   var corpo='';
 
   /* ---- ENTRADAS ---- */
-  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+4)+'">Entradas</td></tr>';
-  var planEnt=0;
+  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+nCols+'">Entradas</td></tr>';
   ordena(ent).forEach(function(ma){
     var g=ent[ma], aberto=!!anoAbertas['E:'+ma];
-    var sb=subsDoPlano_('E', ma, g);
-    planEnt += planoSomaDe_(planoKey_('E', ma, ''), sb);
     corpo += linha('<span class="ano-cx">'+(aberto?'–':'+')+'</span> '+esc_(ma),
                    g.tot, 'ano-macro ano-clk', nEnt, ' data-k="E:'+esc_(ma)+'"',
-                   planoKey_('E', ma, ''), sb);
+                   {tipo:'E', macro:ma, sub:'', g:g});
     if(aberto){
       Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
-        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nEnt,
-                   '', planoKey_('E', ma, su), null); });
+        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nEnt, '',
+                   {tipo:'E', macro:ma, sub:su, g:null}); });
     }
   });
-  corpo += linhaTotalPlan_('<b>Total que entrou</b>', totEnt, 'ano-soma ano-pos', nEnt, planEnt);
+  corpo += linhaTotal_('<b>Total que entrou</b>', totEnt, 'ano-soma ano-pos', nEnt, 'E', ent);
 
   /* ---- SAIDAS ---- */
-  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+(ms.length+4)+'">Saídas</td></tr>';
-  var planSai=0;
+  corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+nCols+'">Saídas</td></tr>';
   ordena(sai).forEach(function(ma){
     var g=sai[ma], aberto=!!anoAbertas['S:'+ma];
-    var sb=subsDoPlano_('S', ma, g);
-    planSai += planoSomaDe_(planoKey_('S', ma, ''), sb);
     corpo += linha('<span class="ano-cx">'+(aberto?'–':'+')+'</span> '+esc_(ma),
                    g.tot, 'ano-macro ano-clk', nSai, ' data-k="S:'+esc_(ma)+'"',
-                   planoKey_('S', ma, ''), sb);
+                   {tipo:'S', macro:ma, sub:'', g:g});
     if(aberto){
       Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
-        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nSai,
-                   '', planoKey_('S', ma, su), null); });
+        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nSai, '',
+                   {tipo:'S', macro:ma, sub:su, g:null}); });
     }
   });
-  corpo += linhaTotalPlan_('<b>Total que saiu</b>', totSai, 'ano-soma ano-neg', nSai, planSai);
+  corpo += linhaTotal_('<b>Total que saiu</b>', totSai, 'ano-soma ano-neg', nSai, 'S', sai);
 
   /* ---- SOBRA ---- */
   var sobra={}; ms.forEach(function(m){ sobra[m]=(totEnt[m]||0)-(totSai[m]||0); });
-  var totSobra=somaLinha(sobra);
+  var totSobra=somaLinha(sobra), totSobraPlan=0;
   var celsS = ms.map(function(m){
     var v=sobra[m]||0;
-    return '<td class="ano-n '+(v>=0?'ano-v-pos':'ano-v-neg')+'">'+(v?anoNum_(v):'—')+'</td>';
+    var pv = planoTotalMes_('E', ent, m) - planoTotalMes_('S', sai, m);
+    totSobraPlan += pv;
+    return '<td class="ano-n ano-plan ano-plan-calc '+(pv>=0?'ano-v-pos':'ano-v-neg')+'">'+(pv?anoNum_(pv):'—')+'</td>'
+         + '<td class="ano-n '+(v>=0?'ano-v-pos':'ano-v-neg')+'">'+(v?anoNum_(v):'—')+'</td>';
   }).join('');
-  var planSobra = planEnt - planSai;
   corpo += '<tr class="ano-soma ano-sobra"><td class="ano-nome"><b>Sobrou</b></td>'+celsS
+    + '<td class="ano-n ano-plan ano-plan-calc '+(totSobraPlan>=0?'ano-v-pos':'ano-v-neg')+'">'+(totSobraPlan?anoNum_(totSobraPlan):'—')+'</td>'
     + '<td class="ano-n ano-tot '+(totSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+anoNum_(totSobra)+'</td>'
-    + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td>'
-    + '<td class="ano-n ano-plan '+(planSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+(planEnt||planSai?anoNum_(planSobra):'—')+'</td></tr>';
+    + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td></tr>';
 
   /* Abrir uma categoria redesenha a tabela inteira, e o navegador joga o
      scroll pro topo: ela clicava numa linha la embaixo e perdia o lugar.
@@ -1131,15 +1144,12 @@ function renderAno(){
     inp.onchange=function(){
       var v=planoNum_(inp.value);
       inp.value = v ? anoNum_(v) : '';
-      planoGrava_(inp.dataset.ch, v, inp).then(function(){ renderAno(); });
+      planoGrava_(inp.dataset.ch+'@'+inp.dataset.mes, v, inp).then(function(){ renderAno(); });
     };
   });
 
   var cap=el('anoCap');
-  if(cap) cap.innerHTML='Todas as categorias em linha, os meses em coluna — a planilha que faltava. '
-    +'<b>Clique na categoria</b> para abrir as subcategorias. <b>Realizado/mês</b> divide só pelos meses que tiveram movimento, '+'não por doze, e é com ele que o <b>Planejado/mês</b> se compara — quando passa, fica vermelho. '
-    +'não por doze. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: '
-    +'não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
+  if(cap) cap.innerHTML='Cada mês tem duas colunas: <b>Plan.</b> é o que você planejou e <b>Real.</b> é o que aconteceu. Clique na categoria para abrir as subcategorias. Digitou numa subcategoria? A categoria passa a somar as subs e para de aceitar digitação — senão o mesmo dinheiro entraria duas vezes. Quando o realizado passa do planejado, o número fica vermelho. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
 
   var ex=el('anoCsv');
   if(ex) ex.onclick=function(){ anoBaixaCsv_(ms, ent, sai, totEnt, totSai, sobra); };
