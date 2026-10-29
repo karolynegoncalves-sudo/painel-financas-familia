@@ -802,6 +802,83 @@ function renderDividas(){
   }).join('');
 }
 
+
+/* ---------- ALERTA DE RITMO ----------
+   Em outubro o delivery estourou e ninguem viu: no dia 4 ja tinham gasto
+   metade do mes, no dia 9 o mes inteiro. Nenhum pedido foi absurdo - foram
+   quatro dias de piloto automatico. Quando a fatura chegou, o mes tinha ido.
+
+   Este card compara duas porcentagens: quanto do planejado ja foi gasto e
+   quanto do mes ja passou. Se o gasto esta MUITO na frente do calendario, o
+   mes ainda da pra salvar. No dia 30 nao da mais.
+
+   O planejado da aba DRE e do ANO - aqui divido por 12 pra achar o do mes. */
+function renderAlertaRitmo(){
+  var box = el('alertaRitmo'); if(!box) return;
+  var MA = D.mesAtual;
+  if(!MA || !D.lanc){ box.innerHTML=''; return; }
+
+  var pctMes = MA.diasNoMes ? (MA.dia / MA.diasNoMes) : 0;
+  /* nao confio que o backend sempre mande a chave: se faltar, monto pela
+     data de hoje, que e o mesmo formato usado na coluna Mes */
+  var hj = new Date();
+  var chaveMes = MA.chave || (hj.getFullYear()+'-'+('0'+(hj.getMonth()+1)).slice(-2));
+
+  /* quanto saiu este mes, por categoria e por subcategoria */
+  var gastoMa = {}, gastoSu = {};
+  (D.lanc||[]).forEach(function(r){
+    if(r[LC.FLAG] !== 'GASTO') return;
+    if(r[LC.MES] !== chaveMes) return;
+    var ma = r[LC.MACRO] || '', su = r[LC.SUB] || '';
+    gastoMa[ma] = (gastoMa[ma]||0) + r[LC.VALOR];
+    gastoSu[ma+'|'+su] = (gastoSu[ma+'|'+su]||0) + r[LC.VALOR];
+  });
+
+  /* toda linha que tem planejado vira um candidato a alerta */
+  var mapa = planoMapa_(), achados = [];
+  Object.keys(mapa).forEach(function(k){
+    var p = k.split('|');                       /* DRE | E/S | macro | sub */
+    if(p[0] !== 'DRE' || p[1] !== 'S') return;  /* so despesa */
+    var anual = mapa[k] || 0; if(anual <= 0) return;
+    var macro = p[2], sub = p[3] || '';
+    var gasto = sub ? (gastoSu[macro+'|'+sub]||0) : (gastoMa[macro]||0);
+    if(gasto < 50) return;                      /* R$ 30 adiantados nao sao noticia */
+    var mensal = anual / 12; if(mensal <= 0) return;
+    var pctGasto = gasto / mensal;
+    /* 25 pontos na frente do calendario e o gatilho que ela pediu */
+    if(pctGasto - pctMes < 0.25) return;
+    achados.push({
+      nome: sub || macro, macro: macro, sub: sub,
+      gasto: gasto, mensal: mensal, pct: pctGasto,
+      projecao: MA.dia ? gasto / MA.dia * MA.diasNoMes : gasto
+    });
+  });
+
+  if(!achados.length){
+    box.innerHTML = '<div class="callout ok">Nenhuma categoria correndo na frente do calendário. '
+      + 'O mês está em <b>'+Math.round(pctMes*100)+'%</b> e nada passou disso de forma preocupante.</div>';
+    return;
+  }
+
+  achados.sort(function(a,b){ return (b.pct-b.gasto/b.projecao) - (a.pct-a.gasto/a.projecao) || b.pct-a.pct; });
+
+  box.innerHTML = '<div class="rit-cab">O mês está em <b>'+Math.round(pctMes*100)+'%</b> '
+      + '(dia '+MA.dia+' de '+MA.diasNoMes+'). Estas categorias já gastaram bem mais que isso:</div>'
+    + achados.map(function(a){
+      var est = a.projecao > a.mensal;
+      return '<div class="rit-item">'
+        + '<div class="rit-nm">'+esc_(a.nome)+(a.sub?' <span class="rit-ma">'+esc_(a.macro)+'</span>':'')+'</div>'
+        + '<div class="rit-bar"><i style="width:'+Math.min(a.pct*100,100).toFixed(0)+'%"></i>'
+        + '<u style="left:'+Math.min(pctMes*100,100).toFixed(0)+'%"></u></div>'
+        + '<div class="rit-vl"><b>'+Math.round(a.pct*100)+'%</b> do mês</div>'
+        + '<div class="rit-det">'+BRL(a.gasto)+' de '+BRL(a.mensal)
+        + ' · no ritmo fecha em <b class="'+(est?'neg':'pos')+'">'+BRL(a.projecao)+'</b></div>'
+        + '</div>';
+    }).join('')
+    + '<div class="rit-pe">A barra clara é onde o mês está. Se o preenchido passou dela, '
+    + 'vocês estão gastando mais rápido que o calendário — e ainda dá pra corrigir.</div>';
+}
+
 /* ---------- PLANEJADO (a coluna que ela digita) ----------
    Fica na aba Plano da planilha, nao no navegador: ela abre o painel no
    celular e no computador, e plano que some ao trocar de aparelho nao e
@@ -2132,7 +2209,7 @@ function renderAll(){
   /* D acabou de chegar do backend: o cache do planejado tem que ser relido,
      senao um valor gravado em outro aparelho nao aparece aqui. */
   planoMapa=null;
-setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAno();renderAnalises();}
+setupMes();renderVisao();renderFluxo();renderCat();renderPessoa();renderMetas();renderIphone();renderProj();renderPatrimonio();renderCusto();renderDividas();renderAno();renderAnalises();renderAlertaRitmo();}
 function initGoogle(){
   var g=document.getElementById('loginGate');
   if(!window.google||!CFG.GOOGLE_CLIENT_ID||String(CFG.GOOGLE_CLIENT_ID).indexOf('COLE')===0){g.innerHTML='<p>Configuração pendente: preencha js/config.js com GOOGLE_CLIENT_ID e APPS_SCRIPT_URL.</p>';return;}
