@@ -948,6 +948,7 @@ async function planoGrava_(k, v, campo){
 
 var anoAbertas = {};      /* macros com as subcategorias abertas */
 var anoZoom    = true;    /* pintar as celulas por intensidade */
+var anoOrdemAZ = false;   /* ordem das categorias: pelo maior (padrao) ou A-Z */
 
 function renderAno(){
   var box = el('anoTab'); if(!box || !D.lanc) return;
@@ -972,9 +973,34 @@ function renderAno(){
     if(fl==='RENDA') totEnt[m]+=r[LC.VALOR]; else totSai[m]+=r[LC.VALOR];
   });
 
+  /* Linha que existe so no orcado tambem entra. A tabela se montava apenas do
+     que JA aconteceu, e por isso nao dava pra planejar o que ainda nao
+     aconteceu: o aluguel de 2027 nao tem lancamento nenhum, logo nao havia
+     linha onde digitar. Agora toda chave do plano vira linha. */
+  Object.keys(planoMapa_()).forEach(function(k){
+    var corte=k.lastIndexOf('@'); if(corte<0) return;
+    if(ms.indexOf(k.slice(corte+1))<0) return;
+    var p=k.slice(0,corte).split('|');
+    if(p[0]!=='DRE' || !p[2]) return;
+    var alvo = p[1]==='E' ? ent : sai, ma=p[2], su=p[3]||'';
+    alvo[ma]=alvo[ma]||{tot:{},subs:{}};
+    if(su) alvo[ma].subs[su]=alvo[ma].subs[su]||{};
+  });
+
   var somaLinha=function(o){ var s=0; ms.forEach(function(m){ s+=o[m]||0; }); return s; };
+  /* Duas ordens, porque servem a coisas diferentes: pelo maior gasto e boa
+     pra ler o mes; A-Z e boa pra planejar, que e quando ela precisa achar a
+     mesma linha no mesmo lugar todo mes - e na ordem por tamanho a linha
+     muda de lugar quando o gasto muda. */
   var ordena=function(grupo){
-    return Object.keys(grupo).sort(function(a,b){ return somaLinha(grupo[b].tot)-somaLinha(grupo[a].tot); });
+    var ks=Object.keys(grupo);
+    if(anoOrdemAZ) return ks.sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+    return ks.sort(function(a,b){ return somaLinha(grupo[b].tot)-somaLinha(grupo[a].tot); });
+  };
+  var ordenaSubs=function(g){
+    var ks=Object.keys(g.subs);
+    if(anoOrdemAZ) return ks.sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+    return ks.sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); });
   };
 
   /* quantos meses tem movimento, pra media nao dividir por mes vazio */
@@ -989,12 +1015,13 @@ function renderAno(){
   var th = '<tr class="ano-h1"><th class="ano-nome" rowspan="2">Categoria</th>'
          + ms.map(function(m){ return '<th class="ano-n ano-mesh" colspan="2">'+esc_(m)+'</th>'; }).join('')
          + '<th class="ano-n ano-mesh" colspan="2">Ano</th>'
+         + '<th class="ano-n ano-mesh" rowspan="2">% do plano</th>'
          + '<th class="ano-n ano-mesh" rowspan="2">Média/mês</th></tr>'
          + '<tr class="ano-h2">'
          + ms.map(function(){ return '<th class="ano-n ano-plan">Plan.</th><th class="ano-n">Real.</th>'; }).join('')
          + '<th class="ano-n ano-plan">Plan.</th><th class="ano-n ano-tot">Real.</th></tr>';
 
-  var nCols = ms.length*2 + 3;
+  var nCols = ms.length*2 + 4;
 
   /* quanto foi planejado nesta linha neste mes. Se alguma subcategoria tem
      valor no mes, a categoria passa a valer a SOMA das subs e para de aceitar
@@ -1008,6 +1035,14 @@ function renderAno(){
     });
     if(tem) return { v:soma, travado:true };
     return { v: planoGet_(planoKey_(tipo,macro,'')+'@'+m), travado:false };
+  };
+
+  /* % do ano contra o que foi planejado. Em saida, passar de 100 e ruim; em
+     entrada e em sobra e o contrario - entao quem chama diz onde fica o bom. */
+  var celPct_=function(tot, plan, maiorEBom){
+    if(plan<=0) return '<td class="ano-n ano-pct ano-zero">—</td>';
+    var p = Math.round(tot/plan*100);
+    return '<td class="ano-n ano-pct '+((maiorEBom ? p>=100 : p<=100)?'ano-v-pos':'ano-v-neg')+'">'+p+'%</td>';
   };
 
   /* ---- uma linha ---- */
@@ -1042,6 +1077,7 @@ function renderAno(){
       + '<td class="ano-nome">'+nome+'</td>' + cels
       + '<td class="ano-n ano-plan ano-plan-calc">'+(totPlan?anoNum_(totPlan):'—')+'</td>'
       + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
+      + celPct_(tot, totPlan, !!(ctx && ctx.tipo==='E'))
       + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
   };
 
@@ -1064,6 +1100,7 @@ function renderAno(){
     return '<tr class="'+classe+'"><td class="ano-nome">'+nome+'</td>'+cels
       + '<td class="ano-n ano-plan ano-plan-calc">'+(totPlan?anoNum_(totPlan):'—')+'</td>'
       + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'—')+'</td>'
+      + celPct_(tot, totPlan, tipo==='E')
       + '<td class="ano-n ano-med">'+(tot&&nMeses?anoNum_(tot/nMeses):'—')+'</td></tr>';
   };
 
@@ -1077,8 +1114,7 @@ function renderAno(){
                    g.tot, 'ano-macro ano-clk', nEnt, ' data-k="E:'+esc_(ma)+'"',
                    {tipo:'E', macro:ma, sub:'', g:g});
     if(aberto){
-      Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
-        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nEnt, '',
+      ordenaSubs(g).forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nEnt, '',
                    {tipo:'E', macro:ma, sub:su, g:null}); });
     }
   });
@@ -1092,8 +1128,7 @@ function renderAno(){
                    g.tot, 'ano-macro ano-clk', nSai, ' data-k="S:'+esc_(ma)+'"',
                    {tipo:'S', macro:ma, sub:'', g:g});
     if(aberto){
-      Object.keys(g.subs).sort(function(a,b){ return somaLinha(g.subs[b])-somaLinha(g.subs[a]); })
-        .forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nSai, '',
+      ordenaSubs(g).forEach(function(su){ corpo += linha('<span class="ano-ind"></span>'+esc_(su), g.subs[su], 'ano-sub', nSai, '',
                    {tipo:'S', macro:ma, sub:su, g:null}); });
     }
   });
@@ -1112,7 +1147,81 @@ function renderAno(){
   corpo += '<tr class="ano-soma ano-sobra"><td class="ano-nome"><b>Sobrou</b></td>'+celsS
     + '<td class="ano-n ano-plan ano-plan-calc '+(totSobraPlan>=0?'ano-v-pos':'ano-v-neg')+'">'+(totSobraPlan?anoNum_(totSobraPlan):'—')+'</td>'
     + '<td class="ano-n ano-tot '+(totSobra>=0?'ano-v-pos':'ano-v-neg')+'">'+anoNum_(totSobra)+'</td>'
+    + celPct_(totSobra, totSobraPlan, true)
     + '<td class="ano-n ano-med">'+(nSai?anoNum_(totSobra/nSai):'—')+'</td></tr>';
+
+  /* ---- SOBRA ACUMULADA ----
+     "Sobrou" responde pelo mes; o acumulado responde pelo ano, que e a
+     pergunta do aluguel. E a linha que a planilha-modelo chama de saldo
+     final. Nao e o saldo das contas: transferencia, fatura e cofrinho ficam
+     fora da DRE de proposito, e quem mostra saldo e a aba Patrimonio. */
+  var acc=0, accPlan=0;
+  var celsA = ms.map(function(m){
+    acc += sobra[m]||0;
+    accPlan += planoTotalMes_('E', ent, m) - planoTotalMes_('S', sai, m);
+    return '<td class="ano-n ano-plan ano-plan-calc '+(accPlan>=0?'ano-v-pos':'ano-v-neg')+'">'+(accPlan?anoNum_(accPlan):'—')+'</td>'
+         + '<td class="ano-n '+(acc>=0?'ano-v-pos':'ano-v-neg')+'">'+(acc?anoNum_(acc):'—')+'</td>';
+  }).join('');
+  corpo += '<tr class="ano-soma ano-acum"><td class="ano-nome"><b>Sobra acumulada</b></td>'+celsA
+    + '<td class="ano-n ano-plan ano-plan-calc '+(accPlan>=0?'ano-v-pos':'ano-v-neg')+'">'+(accPlan?anoNum_(accPlan):'—')+'</td>'
+    + '<td class="ano-n ano-tot '+(acc>=0?'ano-v-pos':'ano-v-neg')+'">'+anoNum_(acc)+'</td>'
+    + celPct_(acc, accPlan, true)
+    + '<td class="ano-n ano-med">—</td></tr>';
+
+  /* CSV com ; e virgula decimal, que e o que o Excel brasileiro abre direto.
+     Sai no mesmo desenho da tela - cada mes com orcado e realizado colados,
+     mais o ano e o % -, porque o arquivo e pra ela conferir fora do painel: se
+     a ordem das colunas nao casasse com a da tela, a conferencia nao fecharia. */
+  var baixaCsv_=function(){
+    var L=[], q=function(x){ return '"'+String(x).replace(/"/g,'""')+'"'; };
+    var br=function(v){ return String((Math.round(v*100)/100).toFixed(2)).replace('.',','); };
+    var pmLinha=function(ctx){ var o={}; ms.forEach(function(m){ o[m]=planoDaLinha_(ctx.tipo,ctx.macro,ctx.sub,ctx.g,m).v; }); return o; };
+    var pmTotal=function(tipo,grupo){ var o={}; ms.forEach(function(m){ o[m]=planoTotalMes_(tipo,grupo,m); }); return o; };
+
+    var lin=function(nome, valores, planos, acumula){
+      var c=[q(nome)], tot=0, plan=0, av=0, ap=0;
+      ms.forEach(function(m){
+        var v=valores[m]||0, p=(planos&&planos[m])||0;
+        tot+=v; plan+=p; av+=v; ap+=p;
+        c.push(br(acumula?ap:p), br(acumula?av:v));
+      });
+      c.push(br(plan), br(tot), plan?br(tot/plan*100):'');
+      return c.join(';');
+    };
+
+    var cab=[q('Categoria')];
+    ms.forEach(function(m){ cab.push(q(m+' or\u00e7ado'), q(m+' realizado')); });
+    cab.push(q('Ano or\u00e7ado'), q('Ano realizado'), q('% do plano'));
+    L.push(cab.join(';'));
+
+    L.push(q('ENTRADAS'));
+    ordena(ent).forEach(function(ma){
+      var g=ent[ma], ctx={tipo:'E',macro:ma,sub:'',g:g};
+      L.push(lin(ma, g.tot, pmLinha(ctx)));
+      ordenaSubs(g).forEach(function(su){ L.push(lin('   '+su, g.subs[su], pmLinha({tipo:'E',macro:ma,sub:su,g:null}))); });
+    });
+    L.push(lin('TOTAL QUE ENTROU', totEnt, pmTotal('E', ent)));
+    L.push(q('SA\u00cdDAS'));
+    ordena(sai).forEach(function(ma){
+      var g=sai[ma], ctx={tipo:'S',macro:ma,sub:'',g:g};
+      L.push(lin(ma, g.tot, pmLinha(ctx)));
+      ordenaSubs(g).forEach(function(su){ L.push(lin('   '+su, g.subs[su], pmLinha({tipo:'S',macro:ma,sub:su,g:null}))); });
+    });
+    L.push(lin('TOTAL QUE SAIU', totSai, pmTotal('S', sai)));
+
+    var pmE=pmTotal('E', ent), pmS=pmTotal('S', sai), pmSo={};
+    ms.forEach(function(m){ pmSo[m]=(pmE[m]||0)-(pmS[m]||0); });
+    L.push(lin('SOBROU', sobra, pmSo));
+    L.push(lin('SOBRA ACUMULADA', sobra, pmSo, true));
+
+    /* BOM pro Excel nao comer os acentos */
+    var blob = new Blob(['\ufeff'+L.join('\r\n')], {type:'text/csv;charset=utf-8'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'financas-ano-' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  };
 
   /* Abrir uma categoria redesenha a tabela inteira, e o navegador joga o
      scroll pro topo: ela clicava numa linha la embaixo e perdia o lugar.
@@ -1149,13 +1258,16 @@ function renderAno(){
   });
 
   var cap=el('anoCap');
-  if(cap) cap.innerHTML='Cada mês tem duas colunas: <b>Plan.</b> é o que você planejou e <b>Real.</b> é o que aconteceu. Clique na categoria para abrir as subcategorias. Digitou numa subcategoria? A categoria passa a somar as subs e para de aceitar digitação — senão o mesmo dinheiro entraria duas vezes. Quando o realizado passa do planejado, o número fica vermelho. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
+  if(cap) cap.innerHTML='Cada mês tem duas colunas: <b>Plan.</b> é o que você planejou e <b>Real.</b> é o que aconteceu. Clique na categoria para abrir as subcategorias. Digitou numa subcategoria? A categoria passa a somar as subs e para de aceitar digitação — senão o mesmo dinheiro entraria duas vezes. Quando o realizado passa do planejado, o número fica vermelho. A coluna <b>% do plano</b> diz quanto do ano planejado já foi usado, e <b>Sobra acumulada</b> é a soma das sobras mês a mês — é ela que responde se o aluguel cabe, e <b>não</b> é o saldo das contas, que mora no Patrimônio. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
 
   var ex=el('anoCsv');
-  if(ex) ex.onclick=function(){ anoBaixaCsv_(ms, ent, sai, totEnt, totSai, sobra); };
+  if(ex) ex.onclick=function(){ baixaCsv_(); };
   var zm=el('anoZoom');
   if(zm){ zm.textContent = anoZoom ? 'Tirar as cores' : 'Pintar por intensidade';
           zm.onclick=function(){ anoZoom=!anoZoom; renderAno(); }; }
+  var od=el('anoOrdem');
+  if(od){ od.textContent = anoOrdemAZ ? 'Ordenar pelo maior' : 'Ordenar A\u2013Z';
+          od.onclick=function(){ anoOrdemAZ=!anoOrdemAZ; renderAno(); }; }
 }
 
 /* numero curto: a tabela tem uma coluna por mes, 'R$' em todas nao cabe */
@@ -1165,36 +1277,6 @@ function anoNum_(v){
   return neg ? '-'+s : s;
 }
 
-/* CSV com ; e virgula decimal, que e o que o Excel brasileiro abre direto */
-function anoBaixaCsv_(ms, ent, sai, totEnt, totSai, sobra){
-  var L=[], q=function(s){ return '"'+String(s).replace(/"/g,'""')+'"'; };
-  var br=function(v){ return String((Math.round(v*100)/100).toFixed(2)).replace('.',','); };
-  var soma=function(o){ var s=0; ms.forEach(function(m){ s+=o[m]||0; }); return s; };
-  var lin=function(nome,o){ return [q(nome)].concat(ms.map(function(m){ return br(o[m]||0); })).concat([br(soma(o))]).join(';'); };
-
-  L.push([q('Categoria')].concat(ms.map(q)).concat([q('Total')]).join(';'));
-  L.push(q('ENTRADAS'));
-  Object.keys(ent).forEach(function(ma){
-    L.push(lin(ma, ent[ma].tot));
-    Object.keys(ent[ma].subs).forEach(function(su){ L.push(lin('   '+su, ent[ma].subs[su])); });
-  });
-  L.push(lin('TOTAL QUE ENTROU', totEnt));
-  L.push(q('SAIDAS'));
-  Object.keys(sai).forEach(function(ma){
-    L.push(lin(ma, sai[ma].tot));
-    Object.keys(sai[ma].subs).forEach(function(su){ L.push(lin('   '+su, sai[ma].subs[su])); });
-  });
-  L.push(lin('TOTAL QUE SAIU', totSai));
-  L.push(lin('SOBROU', sobra));
-
-  /* BOM pro Excel nao comer os acentos */
-  var blob = new Blob(['﻿'+L.join('\r\n')], {type:'text/csv;charset=utf-8'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'financas-ano-' + new Date().toISOString().slice(0,10) + '.csv';
-  document.body.appendChild(a); a.click();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 0);
-}
 
 /* ================= ANALISES =================
    A Karol pediu que esta aba fosse escrita como o estudo, e nao so uma pilha
