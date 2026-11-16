@@ -311,6 +311,15 @@ table.ano thead .ano-nome{z-index:4;background:var(--surface-2)}
 table.ano thead .ano-plan{background:var(--ink)}
 .ano-estourou .ano-med{color:var(--coral);font-weight:600}
 .ano-pct{font-weight:600;border-left:2px solid var(--line)}
+.diz-box{margin:0 0 14px}
+.diz-box:empty{display:none}
+.diz-tit{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+.diz-tit span{text-transform:none;letter-spacing:0;font-size:11.5px}
+.diz-chip{font:inherit;font-size:12px;padding:4px 10px;margin:0 6px 6px 0;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.diz-chip.off{color:var(--ink-3);text-decoration:line-through;background:var(--surface-2)}
+.diz-chip.plan-ok{border-color:var(--teal)}
+.diz-chip.plan-erro{border-color:var(--coral)}
 .ano-acum td{border-top:1px solid var(--line)}
 .ano-acum .ano-nome{background:var(--surface-2)}
 

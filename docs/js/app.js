@@ -950,6 +950,30 @@ var anoAbertas = {};      /* macros com as subcategorias abertas */
 var anoZoom    = true;    /* pintar as celulas por intensidade */
 var anoOrdemAZ = false;   /* ordem das categorias: pelo maior (padrao) ou A-Z */
 
+/* ---------- DIZIMO, OFERTAS E PRIMICIAS ----------
+   A regra veio da planilha de orcamento que ela usa de referencia:
+     base      = entradas dizimaveis do mes
+     primicias = base / 30                  (o primeiro dia de ganho)
+     dizimo    = 10% do que sobra depois das primicias
+   Nem toda entrada e dizimavel: estorno e devolucao sao dinheiro voltando,
+   nao renda. O que NAO entra fica marcado com a chave NDIZ na aba Plano, e
+   quem nao esta marcado entra - assim uma renda nova ja nasce dentro, que e o
+   lado seguro de errar. */
+var DIZ_DIV = 30;     /* primicias: um trinta avos da base */
+var DIZ_PCT = 0.10;   /* dizimo: dez por cento do que sobra */
+
+/* nome de subcategoria que JA e dizimo/primicia/oferta pago */
+function dizTipo_(su){
+  var t = String(su||'').toLowerCase()
+          .replace(/[\u00e1\u00e0\u00e3\u00e2]/g,'a').replace(/[\u00e9\u00ea]/g,'e')
+          .replace(/[\u00ed]/g,'i').replace(/[\u00f3\u00f5\u00f4]/g,'o').replace(/[\u00fa]/g,'u')
+          .replace(/[\u00e7]/g,'c');
+  if(t.indexOf('dizimo')>=0)  return 'dizimo';
+  if(t.indexOf('primicia')>=0) return 'primicias';
+  if(t.indexOf('oferta')>=0)   return 'ofertas';
+  return '';
+}
+
 function renderAno(){
   var box = el('anoTab'); if(!box || !D.lanc) return;
 
@@ -1021,7 +1045,7 @@ function renderAno(){
          + ms.map(function(){ return '<th class="ano-n ano-plan">Plan.</th><th class="ano-n">Real.</th>'; }).join('')
          + '<th class="ano-n ano-plan">Plan.</th><th class="ano-n ano-tot">Real.</th></tr>';
 
-  var nCols = ms.length*2 + 4;
+  var nCols = ms.length*2 + 5;   /* nome + (plan,real) por mes + ano(2) + % + media */
 
   /* quanto foi planejado nesta linha neste mes. Se alguma subcategoria tem
      valor no mes, a categoria passa a valer a SOMA das subs e para de aceitar
@@ -1120,6 +1144,84 @@ function renderAno(){
   });
   corpo += linhaTotal_('<b>Total que entrou</b>', totEnt, 'ano-soma ano-pos', nEnt, 'E', ent);
 
+  /* ---- DIZIMO, OFERTAS E PRIMICIAS ----
+     Este bloco NAO entra nos totais: o que foi dado ja aparece la embaixo como
+     gasto, em Generosidade. Aqui e so a conta de quanto deveria ser, do jeito
+     que a planilha-modelo faz. */
+  var dizSubs = [];
+  Object.keys(ent).forEach(function(ma){
+    Object.keys(ent[ma].subs).forEach(function(su){ dizSubs.push([ma, su]); });
+  });
+  var dizEntra_ = function(ma, su){ return !planoGet_('NDIZ|'+ma+'|'+su+'@ANO'); };
+
+  var baseReal={}, basePlan={};
+  ms.forEach(function(m){ baseReal[m]=0; basePlan[m]=0; });
+  dizSubs.forEach(function(p){
+    if(!dizEntra_(p[0], p[1])) return;
+    ms.forEach(function(m){
+      baseReal[m] += ent[p[0]].subs[p[1]][m] || 0;
+      basePlan[m] += planoDaLinha_('E', p[0], p[1], null, m).v;
+    });
+  });
+
+  var mapa_   = function(o, f){ var r={}; ms.forEach(function(m){ r[m]=f(o[m]||0); }); return r; };
+  var primDe_ = function(o){ return mapa_(o, function(v){ return v/DIZ_DIV; }); };
+  var dizDe_  = function(o){ return mapa_(o, function(v){ return (v - v/DIZ_DIV)*DIZ_PCT; }); };
+  var somaDe_ = function(a, b){ var r={}; ms.forEach(function(m){ r[m]=(a[m]||0)+(b[m]||0); }); return r; };
+
+  var primR=primDe_(baseReal), primP=primDe_(basePlan);
+  var dizR =dizDe_(baseReal),  dizP =dizDe_(basePlan);
+  var devR =somaDe_(primR,dizR), devP=somaDe_(primP,dizP);
+
+  /* o que ja foi dado: qualquer gasto cuja subcategoria se chame dizimo,
+     primicia ou oferta, em qualquer categoria - ela pode ter posto em
+     Generosidade ou criar outra depois */
+  var dado={}, dadoDet={dizimo:0, primicias:0, ofertas:0};
+  ms.forEach(function(m){ dado[m]=0; });
+  (D.lanc||[]).forEach(function(r){
+    if(r[LC.FLAG]!=='GASTO') return;
+    var t=dizTipo_(r[LC.SUB]); if(!t) return;
+    var m=r[LC.MES]; if(ms.indexOf(m)<0) return;
+    dado[m]=(dado[m]||0)+r[LC.VALOR]; dadoDet[t]+=r[LC.VALOR];
+  });
+  var falta={}; ms.forEach(function(m){ falta[m]=(devR[m]||0)-(dado[m]||0); });
+
+  /* linha so de conta: nao tem onde digitar, o planejado tambem e calculado */
+  var linhaCalc_=function(nome, real, plan, classe, maiorEBom, titulo){
+    var tot=somaLinha(real), totPlan=somaLinha(plan);
+    var cels = ms.map(function(m){
+      var v=real[m]||0, p=plan[m]||0;
+      return '<td class="ano-n ano-plan ano-plan-calc">'+(p?anoNum_(p):'\u2014')+'</td>'
+           + '<td class="ano-n">'+(v?anoNum_(v):'<span class="ano-zero">\u2014</span>')+'</td>';
+    }).join('');
+    return '<tr class="'+classe+'"'+(titulo?' title="'+esc_(titulo)+'"':'')+'>'
+      + '<td class="ano-nome">'+nome+'</td>'+cels
+      + '<td class="ano-n ano-plan ano-plan-calc">'+(totPlan?anoNum_(totPlan):'\u2014')+'</td>'
+      + '<td class="ano-n ano-tot">'+(tot?anoNum_(tot):'\u2014')+'</td>'
+      + celPct_(tot, totPlan, !!maiorEBom)
+      + '<td class="ano-n ano-med">'+(tot&&nEnt?anoNum_(tot/nEnt):'\u2014')+'</td></tr>';
+  };
+
+  if(dizSubs.length){
+    corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+nCols+'">D\u00edzimo, ofertas e prim\u00edcias</td></tr>';
+    corpo += linhaCalc_('Entradas dizim\u00e1veis', baseReal, basePlan, 'ano-macro');
+    corpo += linhaCalc_('<span class="ano-ind"></span>Prim\u00edcias devidas (base \u00f7 30)', primR, primP, 'ano-sub');
+    corpo += linhaCalc_('<span class="ano-ind"></span>D\u00edzimo devido (10% do que sobra)', dizR, dizP, 'ano-sub');
+    corpo += linhaCalc_('<b>Devido no m\u00eas</b>', devR, devP, 'ano-soma');
+    corpo += linhaCalc_('Dado no m\u00eas', dado, {}, 'ano-macro', true,
+             'D\u00edzimo '+BRL(dadoDet.dizimo)+' \u00b7 Prim\u00edcias '+BRL(dadoDet.primicias)+' \u00b7 Ofertas '+BRL(dadoDet.ofertas));
+    var totFalta=somaLinha(falta);
+    corpo += '<tr class="ano-soma"><td class="ano-nome"><b>'+(totFalta>0?'Falta dar':'Dado a mais')+'</b></td>'
+      + ms.map(function(m){
+          var v=falta[m]||0;
+          return '<td class="ano-n ano-plan ano-plan-calc">\u2014</td>'
+               + '<td class="ano-n '+(v>0?'ano-v-neg':'ano-v-pos')+'">'+(Math.round(v)?anoNum_(v):'\u2014')+'</td>';
+        }).join('')
+      + '<td class="ano-n ano-plan ano-plan-calc">\u2014</td>'
+      + '<td class="ano-n ano-tot '+(totFalta>0?'ano-v-neg':'ano-v-pos')+'">'+anoNum_(Math.abs(totFalta))+'</td>'
+      + '<td class="ano-n ano-pct ano-zero">\u2014</td><td class="ano-n ano-med">\u2014</td></tr>';
+  }
+
   /* ---- SAIDAS ---- */
   corpo += '<tr class="ano-sec"><td class="ano-nome" colspan="'+nCols+'">Saídas</td></tr>';
   ordena(sai).forEach(function(ma){
@@ -1214,6 +1316,16 @@ function renderAno(){
     L.push(lin('SOBROU', sobra, pmSo));
     L.push(lin('SOBRA ACUMULADA', sobra, pmSo, true));
 
+    if(dizSubs.length){
+      L.push(q('D\u00cdZIMO, OFERTAS E PRIM\u00cdCIAS'));
+      L.push(lin('Entradas dizim\u00e1veis', baseReal, basePlan));
+      L.push(lin('   Prim\u00edcias devidas (base / 30)', primR, primP));
+      L.push(lin('   D\u00edzimo devido (10% do que sobra)', dizR, dizP));
+      L.push(lin('DEVIDO NO M\u00caS', devR, devP));
+      L.push(lin('DADO NO M\u00caS', dado, null));
+      L.push(lin('FALTA DAR', falta, null));
+    }
+
     /* BOM pro Excel nao comer os acentos */
     var blob = new Blob(['\ufeff'+L.join('\r\n')], {type:'text/csv;charset=utf-8'});
     var a = document.createElement('a');
@@ -1258,7 +1370,30 @@ function renderAno(){
   });
 
   var cap=el('anoCap');
-  if(cap) cap.innerHTML='Cada mês tem duas colunas: <b>Plan.</b> é o que você planejou e <b>Real.</b> é o que aconteceu. Clique na categoria para abrir as subcategorias. Digitou numa subcategoria? A categoria passa a somar as subs e para de aceitar digitação — senão o mesmo dinheiro entraria duas vezes. Quando o realizado passa do planejado, o número fica vermelho. A coluna <b>% do plano</b> diz quanto do ano planejado já foi usado, e <b>Sobra acumulada</b> é a soma das sobras mês a mês — é ela que responde se o aluguel cabe, e <b>não</b> é o saldo das contas, que mora no Patrimônio. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
+  if(cap) cap.innerHTML='Cada mês tem duas colunas: <b>Plan.</b> é o que você planejou e <b>Real.</b> é o que aconteceu. Clique na categoria para abrir as subcategorias. Digitou numa subcategoria? A categoria passa a somar as subs e para de aceitar digitação — senão o mesmo dinheiro entraria duas vezes. Quando o realizado passa do planejado, o número fica vermelho. A coluna <b>% do plano</b> diz quanto do ano planejado já foi usado, e <b>Sobra acumulada</b> é a soma das sobras mês a mês — é ela que responde se o aluguel cabe, e <b>não</b> é o saldo das contas, que mora no Patrimônio. O bloco do <b>dízimo</b> é só uma conta — ele <b>não entra</b> nos totais, porque o que vocês dão já aparece como gasto em Generosidade. Transferência entre contas, pagamento de fatura e dinheiro que foi pro cofrinho <b>não entram</b>: não são nem renda nem gasto, e contá-los dobraria o mesmo dinheiro.';
+
+  /* Quem entra no dizimo. Fica aqui em cima, e nao escondido numa tela de
+     ajuste, porque a resposta muda a conta logo abaixo e ela precisa ver as
+     duas coisas juntas. Desmarcado = nao entra na base. */
+  var cxDiz=el('anoDiz');
+  if(cxDiz){
+    if(!dizSubs.length){ cxDiz.innerHTML=''; }
+    else {
+      cxDiz.innerHTML = '<div class="diz-tit">Entra no d\u00edzimo <span>(clique para tirar o que n\u00e3o for renda \u2014 estorno e devolu\u00e7\u00e3o, por exemplo)</span></div>'
+        + dizSubs.map(function(p){
+            var on=dizEntra_(p[0],p[1]);
+            return '<button class="diz-chip'+(on?'':' off')+'" data-ma="'+esc_(p[0])+'" data-su="'+esc_(p[1])+'">'
+                 + (on?'\u2713 ':'\u00d7 ') + esc_(p[1]) + '</button>';
+          }).join('');
+      [].forEach.call(cxDiz.querySelectorAll('.diz-chip'), function(b){
+        b.onclick=function(){
+          var k='NDIZ|'+b.dataset.ma+'|'+b.dataset.su+'@ANO';
+          var vira = planoGet_(k) ? 0 : 1;        /* 1 = fica de fora da base */
+          planoGrava_(k, vira, b).then(function(){ renderAno(); });
+        };
+      });
+    }
+  }
 
   var ex=el('anoCsv');
   if(ex) ex.onclick=function(){ baixaCsv_(); };
