@@ -980,6 +980,20 @@ function renderAno(){
   var ms = (MESES||[]).slice();
   if(!ms.length){ box.innerHTML='<div class="note">Sem meses na base.</div>'; return; }
 
+  /* Mes que existe so no orcado tambem vira coluna. Sem isso nao dava pra
+     planejar dezembro em novembro: a tabela so conhecia mes que ja tinha
+     lancamento, e orcamento que so aceita o passado nao e orcamento. */
+  var MESORD = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  if(ms.every(function(m){ return MESORD.indexOf(m)>=0; })){
+    Object.keys(planoMapa_()).forEach(function(k){
+      var corte=k.lastIndexOf('@'); if(corte<0) return;
+      var mm=k.slice(corte+1);
+      if(ms.indexOf(mm)>=0 || MESORD.indexOf(mm)<0) return;
+      ms.push(mm);
+    });
+    ms.sort(function(a,b){ return MESORD.indexOf(a)-MESORD.indexOf(b); });
+  }
+
   /* ---- monta o quadro: entradas e saidas, por macro e por sub ---- */
   var ent={}, sai={}, totEnt={}, totSai={};
   ms.forEach(function(m){ totEnt[m]=0; totSai[m]=0; });
